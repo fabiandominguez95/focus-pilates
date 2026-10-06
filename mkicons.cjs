@@ -1,0 +1,3 @@
+const sharp = require('/home/claude/.npm-global/lib/node_modules/sharp');
+const svg = (s) => Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s}" viewBox="0 0 512 512"><rect width="512" height="512" fill="#4d7a63"/><circle cx="256" cy="256" r="150" fill="none" stroke="#f5f4ef" stroke-width="22" opacity=".35"/><circle cx="256" cy="256" r="90" fill="none" stroke="#f5f4ef" stroke-width="22"/><circle cx="256" cy="256" r="22" fill="#f5f4ef"/></svg>`);
+(async()=>{for (const s of [180,192,512]) await sharp(svg(s)).resize(s,s).png().toFile(`public/icon-${s}.png`); console.log('icons ok');})();
