@@ -69,7 +69,7 @@ function NuevaPersona({ onClose, onCreated }: { onClose: () => void; onCreated: 
     <Sheet title="Nuevo cliente" onClose={onClose}>{node}
       <div className="stack">
         <Field label="Nombre y apellido"><input value={nombre} onChange={(e) => setNombre(e.target.value)} autoFocus />{dup && <em className="warn">Ya existe alguien con ese nombre.</em>}</Field>
-        <Field label="Celular" hint="Ej: 0981 123 456 — se guarda con código de país"><input inputMode="tel" value={cel} onChange={(e) => setCel(e.target.value)} /></Field>
+        <Field label="Celular" hint="Con o sin el 0 inicial; se guarda con código de país"><input inputMode="tel" value={cel} onChange={(e) => setCel(e.target.value)} /></Field>
         <Field label="Tutor (si es menor)" hint="Buscá a la persona; si todavía no está cargada, podés crearla desde acá."><PersonaPicker value={tutor} onChange={setTutor} /></Field>
         <Field label="Notas"><input value={nota} onChange={(e) => setNota(e.target.value)} /></Field>
         <Field label="¿Cómo empieza?"><div className="chips wrap">{([['prueba', 'Clase de prueba'], ['directo', 'Se inscribe directo (sin prueba)'], ['datos', 'Solo guardar datos']] as const).map(([k, l]) => <button type="button" key={k} className={'chip' + (modo === k ? ' on' : '')} onClick={() => setModo(k)}>{l}</button>)}</div></Field>

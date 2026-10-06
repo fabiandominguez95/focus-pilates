@@ -27,24 +27,25 @@ export default function Portal({ token }: { token?: string }) {
     let g: any = null; try { g = JSON.parse(localStorage.getItem(LS_A) || 'null'); } catch { /* */ }
     if (g?.u && g?.p) entrar(g.u, g.p, false).then((ok) => { if (!ok) setPerfiles(null); }); else setPerfiles(null);
   }, [token]);
-  const salir = () => { try { localStorage.removeItem(LS_A); } catch { /* */ } setPerfiles(null); setPw(''); location.hash = ''; };
+  const salir = () => { try { localStorage.removeItem(LS_A); } catch { /* */ } location.href = location.pathname; };
   if (perfiles === undefined) return <Boot><div className="muted">Cargando…</div></Boot>;
   if (!perfiles) {
     if (token) return <Boot><div className="muted" style={{ textAlign: 'center', maxWidth: 300 }}>Este enlace no es válido. Podés entrar con tu nombre y celular.</div><button className="btn" style={{ marginTop: 14 }} onClick={() => { location.hash = 'mi'; }}>Entrar con mis datos</button></Boot>;
     return (
       <div className="login"><form className="login-card" onSubmit={(e) => { e.preventDefault(); entrar(u, pw, true); }}>
         <div className="brand">Focus Pilates</div><div className="muted" style={{ marginBottom: 22 }}>Tu perfil de alumno/a</div>
-        <label className="field"><span>Tu nombre o apellido</span><input autoCapitalize="none" autoCorrect="off" value={u} onChange={(e) => setU(e.target.value)} placeholder="Ej: Domínguez" /></label>
-        <label className="field" style={{ marginTop: 12 }}><span>Últimos 6 números de tu celular</span><input inputMode="numeric" maxLength={6} value={pw} onChange={(e) => setPw(e.target.value.replace(/\D/g, ''))} placeholder="Ej: 901134" /></label>
+        <label className="field"><span>Tu nombre o apellido</span><input autoCapitalize="none" autoCorrect="off" value={u} onChange={(e) => setU(e.target.value)} placeholder="Tu nombre o tu apellido" /></label>
+        <label className="field" style={{ marginTop: 12 }}><span>Últimos 6 números de tu celular</span><input inputMode="numeric" maxLength={6} value={pw} onChange={(e) => setPw(e.target.value.replace(/\D/g, ''))} placeholder="Los últimos 6 números" /></label>
         {err && <div className="warn" style={{ margin: '10px 0' }}>{err}</div>}
         <button className="btn big" style={{ marginTop: 14 }} disabled={busy || u.trim().length < 3 || pw.length !== 6}>{busy ? 'Entrando…' : 'Ver mi perfil'}</button>
         <button type="button" className="btn ghost big" style={{ marginTop: 10 }} onClick={() => { location.hash = ''; }}>Volver</button>
         <div className="muted small" style={{ marginTop: 14, textAlign: 'center' }}>Usá el celular con el que te anotaste en el estudio. Si sos madre o padre, ves también a tus hijos/as.</div></form></div>);
   }
-  return (<div>
+  return (<div style={{ position: 'relative' }}>
+    <button className="btn ghost sm" style={{ position: 'absolute', top: 14, right: 14, zIndex: 5 }} onClick={salir}>Salir</button>
     {perfiles.length > 1 && <div className="chips scroll" style={{ padding: '60px 16px 0', marginBottom: -50 }}>{perfiles.map((x, k) => <button key={k} className={'chip' + (k === i ? ' on' : '')} onClick={() => setI(k)}>{primerNombre(x.nombre)}</button>)}</div>}
     <Perfil data={perfiles[Math.min(i, perfiles.length - 1)]} />
-    <div style={{ textAlign: 'center', padding: '0 16px 110px' }}><button className="btn ghost sm" onClick={salir}>{token ? 'Cerrar' : 'Salir'}</button></div></div>);
+    <div style={{ textAlign: 'center', padding: '0 16px 110px' }}><button className="btn ghost" onClick={salir}>Salir</button></div></div>);
 }
 
 function Perfil({ data }: { data: any }) {
