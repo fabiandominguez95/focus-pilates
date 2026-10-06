@@ -68,17 +68,17 @@ export function Facts({ openPersona, embedded }: { openPersona: (id: string) => 
   return (
     <div className={embedded ? 'facts-emb' : 'page'}>{embedded ? <h2 style={{ marginBottom: 10 }}>Datos curiosos</h2> : <header className="page-head"><h1>Datos curiosos</h1></header>}
       <div className="kpis">
-        <div className="kpi"><span>Abiertas desde</span><b>{f.prim ? fmtDateY(f.prim) : '—'}</b><small>{f.mesesAbierto} meses</small></div>
-        <div className="kpi"><span>Clases dadas</span><b>{num(f.dadas.length)}</b><small>{num(f.slots)} horarios con alumnas</small></div>
-        <div className="kpi"><span>Personas</span><b>{f.rows.length}</b><small>{f.rows.filter((r: any) => r.e.stage === 'inscripta').length} inscriptas hoy</small></div>
+        <div className="kpi"><span>Abrimos desde</span><b>{f.prim ? fmtDateY(f.prim) : '—'}</b><small>{f.mesesAbierto} meses</small></div>
+        <div className="kpi"><span>Clases dadas</span><b>{num(f.dadas.length)}</b><small>{num(f.slots)} horarios con alumnos/as</small></div>
+        <div className="kpi"><span>Personas</span><b>{f.rows.length}</b><small>{f.rows.filter((r: any) => r.e.stage === 'inscripta').length} inscriptos/as hoy</small></div>
         {isAdmin && <div className="kpi"><span>Facturado en total</span><b>{gs(f.totalIng)}</b></div>}
       </div>
       <Card t="Quién dio las clases">{[...f.porProfe.entries()].map(([id, n]) => <div className="kv" key={id}><span>{d.profesoras.find((p: any) => p.id === id)?.nombre || 'Sin asignar (histórico)'}</span><b>{num(n)} clases</b></div>)}</Card>
       <Card t="Más asistencias"><Top list={f.top((r: any) => r.s.asist)} fmt={(r: any) => r.s.asist} /></Card>
       <Card t="Más ausencias"><Top list={f.top((r: any) => r.s.ausentes)} fmt={(r: any) => r.s.ausentes} /></Card>
       <Card t="Más recuperaciones"><Top list={f.top((r: any) => r.s.recup)} fmt={(r: any) => r.s.recup} /></Card>
-      <Card t="Más antiguas"><Top list={[...f.rows].filter((r: any) => r.s.primera).sort((a: any, b: any) => a.s.primera.localeCompare(b.s.primera)).slice(0, 3)} fmt={(r: any) => fmtDate(r.s.primera)} /></Card>
-      <Card t="Más recurrentes (meses suscriptas)"><Top list={f.top((r: any) => r.s.meses)} fmt={(r: any) => r.s.meses + ' meses'} /></Card>
+      <Card t="Más antiguos/as"><Top list={[...f.rows].filter((r: any) => r.s.primera).sort((a: any, b: any) => a.s.primera.localeCompare(b.s.primera)).slice(0, 3)} fmt={(r: any) => fmtDate(r.s.primera)} /></Card>
+      <Card t="Más recurrentes (meses suscriptos/as)"><Top list={f.top((r: any) => r.s.meses)} fmt={(r: any) => r.s.meses + ' meses'} /></Card>
       {isAdmin && <Card t="Quien más dinero dejó"><Top list={f.top((r: any) => r.s.pagado)} fmt={(r: any) => gs(r.s.pagado)} /></Card>}
       <Card t="Horarios más llenos (promedio por clase)">{f.avgHora.slice(0, 3).map((x: any) => <div className="kv" key={x.h}><span>{x.h}</span><b>{x.avg.toFixed(1)} personas</b></div>)}</Card>
       <Card t="Horarios más solitarios">{[...f.avgHora].reverse().slice(0, 3).map((x: any) => <div className="kv" key={x.h}><span>{x.h}</span><b>{x.avg.toFixed(1)} personas</b></div>)}<div className="muted small">{num(f.solas)} clases con una sola persona · {num(f.llenas)} con cupo completo</div></Card>

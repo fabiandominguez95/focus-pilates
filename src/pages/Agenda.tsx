@@ -45,7 +45,7 @@ export default function Agenda({ openPersona }: { openPersona: (id: string) => v
       {more && <div className="box stack">
         <div className="row2"><select value={tipo} onChange={(e) => setTipo(e.target.value)}><option value="">Todo tipo</option>{Object.entries(TIPO_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
           <select value={estado} onChange={(e) => setEstado(e.target.value)}><option value="">Todo estado</option><option value="agendada">Agendada</option><option value="asistio">Asistió</option><option value="ausente">Ausente</option><option value="no_dada">No dada</option></select></div>
-        <div className="row2"><select value={profe} onChange={(e) => setProfe(e.target.value)}><option value="">Toda profe</option>{d.profesoras.map((p: any) => <option key={p.id} value={p.id}>{p.nombre}</option>)}</select>
+        <div className="row2"><select value={profe} onChange={(e) => setProfe(e.target.value)}><option value="">Todo instructor/a</option>{d.profesoras.map((p: any) => <option key={p.id} value={p.id}>{p.nombre}</option>)}</select>
           <input placeholder="Persona…" value={q} onChange={(e) => setQ(e.target.value)} /></div></div>}
 
       {vista === 'dia' && (

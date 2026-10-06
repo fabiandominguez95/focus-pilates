@@ -2,15 +2,15 @@ import React, { useMemo, useState } from 'react';
 import { useApp } from '../store';
 import { buildIndex } from '../logic';
 import { Sheet, Field, Seg, useConfirm } from '../ui';
-import { adminFn, historial, changeOwnPassword } from '../api';
+import { adminFn, historial, changeOwnPassword, fetchAll } from '../api';
 import { buildXlsx, download } from '../xlsx';
 import { fmtDate, gs, hm, monthLabel } from '../util';
 import { allMonths } from '../fin';
 
 const SECS: [string, string, string][] = [
   ['general', 'General', 'Horario, cupo, plazos, umbrales de atraso'], ['planes', 'Planes', 'Precios y planes'], ['promos', 'Promos y grupos', 'Descuentos'], ['pagos', 'Métodos de pago', ''],
-  ['profes', 'Profesoras', 'Fijas y suplentes, salario base'], ['plantillas', 'Mensajes de WhatsApp', 'Plantillas editables'], ['usuarios', 'Usuarios', 'Nicks, roles, contraseñas'],
-  ['backup', 'Backup en Excel', 'Descargar por mes o completo'], ['historial', 'Historial de cambios', 'Quién cambió qué'], ['papelera', 'Papelera', 'Restaurar eliminados'],
+  ['profes', 'Instructores/as', 'Fijas y suplentes, salario base'], ['plantillas', 'Mensajes de WhatsApp', 'Plantillas editables'], ['usuarios', 'Usuarios', 'Nicks, roles, contraseñas'],
+  ['backup', 'Backup en Excel', 'Descargar por mes o completo'], ['historial', 'Historial de cambios', 'Quién cambió qué'], ['accesos', 'Accesos de alumnos/as', 'Quién vio su perfil y cuándo'], ['papelera', 'Papelera', 'Restaurar eliminados'],
 ];
 const DIRTY = { v: false };
 function useDirty(flag: boolean) { React.useEffect(() => { DIRTY.v = flag; return () => { DIRTY.v = false; }; }, [flag]); }
@@ -23,7 +23,7 @@ export default function Config({ sec = '' }: { sec?: string }) {
   const volver = async () => { if (DIRTY.v && !(await ask('Tenés cambios sin guardar. ¿Salir y descartarlos?'))) return; DIRTY.v = false; location.hash = 'config'; };
   if (sec && SECS.some((x) => x[0] === sec)) return <div className="page">{node}<header className="page-head"><button className="btn sm ghost" onClick={volver}>‹ Configuración</button><h1>{SECS.find((s) => s[0] === sec)?.[1]}</h1></header>
     {sec === 'general' && <General />}{sec === 'planes' && <Planes />}{sec === 'promos' && <Promos />}{sec === 'pagos' && <Metodos />}{sec === 'profes' && <Profes />}{sec === 'plantillas' && <Plantillas />}
-    {sec === 'usuarios' && <Usuarios />}{sec === 'backup' && <Backup />}{sec === 'historial' && <Historial />}{sec === 'papelera' && <Papelera />}</div>;
+    {sec === 'usuarios' && <Usuarios />}{sec === 'backup' && <Backup />}{sec === 'historial' && <Historial />}{sec === 'accesos' && <Accesos />}{sec === 'papelera' && <Papelera />}</div>;
   return (<div className="page"><header className="page-head"><h1>Configuración</h1></header><div className="list">{SECS.map(([k, t, s]) => <div className="row-card plain" key={k} onClick={() => { location.hash = 'config/' + k; }}><div className="grow"><b>{t}</b><div className="small muted">{s}</div></div><span className="chev">›</span></div>)}</div></div>);
 }
 
@@ -98,7 +98,7 @@ function Promos() {
       <div className="row2"><Field label="Tipo"><select value={tipo} onChange={(e) => setTipo(e.target.value)}><option value="porcentaje">% descuento</option><option value="monto">Monto fijo</option></select></Field><Field label="Valor"><input inputMode="numeric" value={val} onChange={(e) => setVal(e.target.value.replace(/\D/g, ''))} /></Field></div>
       <Field label="Duración en meses" hint="Vacío = permanente"><input inputMode="numeric" value={dur} onChange={(e) => setDur(e.target.value.replace(/\D/g, ''))} /></Field>
       <button className="btn" disabled={!nm || !val} onClick={() => save(async () => { await ins('promos', { nombre: nm, tipo, valor: Number(val), duracion_meses: dur ? Number(dur) : null, activa: true }); setNm(''); setVal(''); setDur(''); })}>Crear promo</button></div>
-    <h3>Descuento de grupo / familia</h3><div className="muted small">Según cuántas personas haya en el grupo (una paga por todas). Se aplica a cada perfil.</div>
+    <h3>Descuento de grupo / familia</h3><div className="muted small">Según cuántas personas haya en el grupo (una sola persona paga por todas). Se aplica a cada perfil.</div>
     <Field label="Plan de referencia para calcular los Gs" hint="Solo para mostrar el equivalente en guaraníes; el descuento se guarda como porcentaje y se aplica al plan de cada persona."><select value={ref} onChange={(e) => setRef(e.target.value)}>{d.planes.filter((p: any) => p.tipo !== 'unica').map((p: any) => <option key={p.id} value={p.id}>{p.nombre} · {gs(p.precio)}</option>)}</select></Field>
     {[2, 3, 4].map((k) => { const pct = Number(g[k]?.valor ?? 20); const gsv = Math.round((refPrecio * pct) / 100 / 1000) * 1000; return (
       <div className="row2" key={k}><Field label={`Grupo de ${k}${k === 4 ? ' o más' : ''} · %`}><input inputMode="decimal" value={String(pct)} onChange={(e) => { const v = Math.min(100, Number(e.target.value.replace(/[^\d.]/g, '')) || 0); setG({ ...g, [k]: { tipo: 'porcentaje', valor: v } }); }} /></Field>
@@ -119,7 +119,7 @@ function MetodoRow({ m }: { m: any }) { const { upd } = useApp(); const save = u
 function Profes() {
   const { d, ins } = useApp(); const save = useSave(); const [nm, setNm] = useState(''); const [tipo, setTipo] = useState('suplente');
   return (<div className="stack"><div className="list">{d.profesoras.map((p: any) => <ProfeRow key={p.id} p={p} />)}</div>
-    <div className="box stack"><b>Agregar profesora</b><div className="row2"><input placeholder="Nombre" value={nm} onChange={(e) => setNm(e.target.value)} /><select value={tipo} onChange={(e) => setTipo(e.target.value)}><option value="fija">Fija</option><option value="suplente">Suplente</option></select></div>
+    <div className="box stack"><b>Agregar instructor/a</b><div className="row2"><input placeholder="Nombre" value={nm} onChange={(e) => setNm(e.target.value)} /><select value={tipo} onChange={(e) => setTipo(e.target.value)}><option value="fija">Fija</option><option value="suplente">Suplente</option></select></div>
       <button className="btn" disabled={!nm} onClick={() => save(async () => { await ins('profesoras', { nombre: nm, tipo, activa: true }); setNm(''); })}>Agregar</button></div>
     <div className="muted small">Salario del mes = base ÷ días hábiles ÷ horas del día × horas trabajadas. Las suplencias se pagan con el monto por suplencia de General.</div></div>);
 }
@@ -141,14 +141,14 @@ function Plantillas() {
 
 function Usuarios() {
   const { d, me, reload, toast } = useApp(); const { ask, node } = useConfirm(); const [form, setForm] = useState<any>(null); const [pw, setPw] = useState(''); const save = useSave();
-  return (<div className="stack">{node}<div className="list">{d.users.map((u: any) => (<div className="row-card plain" key={u.id} onClick={() => setForm({ ...u, edit: true, password: '' })}><div className="grow"><b>{u.nombre}</b><div className="small muted">@{u.nick} · {u.rol === 'admin' ? 'Admin' : 'Profe'}{u.activo === false ? ' · desactivado' : ''}</div></div><span className="chev">›</span></div>))}</div>
+  return (<div className="stack">{node}<div className="list">{d.users.map((u: any) => (<div className="row-card plain" key={u.id} onClick={() => setForm({ ...u, edit: true, password: '' })}><div className="grow"><b>{u.nombre}</b><div className="small muted">@{u.nick} · {u.rol === 'admin' ? 'Administrador' : 'Instructor/a'}{u.profesora_id ? (u.rol === 'admin' ? ' + profesora' : ' · profesora') : ''}{u.activo === false ? ' · desactivado' : ''}</div></div><span className="chev">›</span></div>))}</div>
     <button className="btn" onClick={() => setForm({ nick: '', nombre: '', rol: 'profe', password: '', profesora_id: '', activo: true })}>+ Nuevo usuario</button>
     <h3>Mi contraseña</h3><div className="row2"><input type="password" placeholder="Nueva contraseña" value={pw} onChange={(e) => setPw(e.target.value)} /><button className="btn" disabled={pw.length < 6} onClick={() => save(async () => { await changeOwnPassword(pw); setPw(''); }, 'Contraseña actualizada')}>Cambiar</button></div>
     {form && <Sheet title={form.edit ? `Editar @${form.nick}` : 'Nuevo usuario'} onClose={() => setForm(null)}><div className="stack">
       {!form.edit && <Field label="Nick (sin espacios)"><input value={form.nick} onChange={(e) => setForm({ ...form, nick: e.target.value })} /></Field>}
       <Field label="Nombre"><input value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} /></Field>
-      <Field label="Rol"><select value={form.rol} onChange={(e) => setForm({ ...form, rol: e.target.value })}><option value="profe">Profe (sin finanzas)</option><option value="admin">Admin</option></select></Field>
-      <Field label="Es la profesora"><select value={form.profesora_id || ''} onChange={(e) => setForm({ ...form, profesora_id: e.target.value || null })}><option value="">—</option>{d.profesoras.map((p: any) => <option key={p.id} value={p.id}>{p.nombre}</option>)}</select></Field>
+      <Field label="Rol"><select value={form.rol} onChange={(e) => setForm({ ...form, rol: e.target.value })}><option value="profe">Instructor/a (sin finanzas)</option><option value="admin">Administrador (ve todo)</option></select></Field>
+      <Field label="Da clases (instructor/a)"><select value={form.profesora_id || ''} onChange={(e) => setForm({ ...form, profesora_id: e.target.value || null })}><option value="">—</option>{d.profesoras.map((p: any) => <option key={p.id} value={p.id}>{p.nombre}</option>)}</select></Field>
       <Field label={form.edit ? 'Nueva contraseña (dejar vacío para no cambiar)' : 'Contraseña (mín. 6)'}><input type="text" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} /></Field>
       {form.edit && <label className="check"><input type="checkbox" checked={form.activo !== false} onChange={(e) => setForm({ ...form, activo: e.target.checked })} /> Activo</label>}
       <button className="btn big" onClick={() => save(async () => {
@@ -163,7 +163,7 @@ export function buildBackup(d: any, mes?: string) {
   const inMes = (f?: string) => !mes || (f || '').startsWith(mes);
   const personas = [['Nombre', 'Celular', 'Tutor', 'Paga', 'Fecha de prueba', 'Sin prueba', 'No contactar', 'Alta', 'Notas'], ...d.personas.map((p: any) => [p.nombre, p.celular, pn(p.tutor_id), pn(p.pagador_id), p.prueba_fecha, !!p.sin_prueba, !!p.no_contactar, p.fecha_alta, p.notas])];
   const subs = [['Persona', 'Plan', 'Inicio', 'Fin', 'Precio lista', 'Promo', 'Precio final', 'Fecha de pago', 'Método', 'Monto pagado'], ...d.suscripciones.filter((s: any) => (mes ? inMes(s.pago_fecha) : true)).map((s: any) => [pn(s.persona_id), s.plan_nombre, s.inicio, s.fin, Number(s.precio_lista), s.promo_nombre, Number(s.precio_final), s.pago_fecha, idx.metodoById.get(s.pago_metodo_id)?.nombre, Number(s.pago_monto) || ''])];
-  const clases = [['Fecha', 'Hora', 'Persona', 'Tipo', 'Estado', 'Motivo ausencia', 'Profesora', 'Fecha original', 'Excepción'], ...d.clases.filter((c: any) => inMes(c.fecha)).sort((a: any, b: any) => (a.fecha + a.hora).localeCompare(b.fecha + b.hora)).map((c: any) => [c.fecha, hm(c.hora), pn(c.persona_id), c.tipo, c.estado, c.motivo_ausencia, idx.profById.get(c.profesora_id)?.nombre, c.fecha_original, !!c.excepcion])];
+  const clases = [['Fecha', 'Hora', 'Persona', 'Tipo', 'Estado', 'Motivo ausencia', 'Instructor/a', 'Fecha original', 'Excepción'], ...d.clases.filter((c: any) => inMes(c.fecha)).sort((a: any, b: any) => (a.fecha + a.hora).localeCompare(b.fecha + b.hora)).map((c: any) => [c.fecha, hm(c.hora), pn(c.persona_id), c.tipo, c.estado, c.motivo_ausencia, idx.profById.get(c.profesora_id)?.nombre, c.fecha_original, !!c.excepcion])];
   const egresos = [['Mes', 'Concepto', 'Tipo', 'Monto', 'Pagado'], ...d.egresos.filter((e: any) => !mes || e.mes === mes).map((e: any) => [e.mes, e.concepto, e.tipo, Number(e.monto), !!e.pagado])];
   const ventas = [['Fecha', 'Producto', 'Cantidad', 'Precio', 'Total'], ...d.ventas.filter((v: any) => inMes(v.fecha)).map((v: any) => [v.fecha, v.nombre, v.cantidad, Number(v.precio_unit), Number(v.total)])];
   const cierres = [['Mes', 'Estado', 'Días hábiles', 'Cerrado por'], ...d.cierres.filter((c: any) => !mes || c.mes === mes).map((c: any) => [c.mes, c.estado, c.dias_habiles, c.cerrado_por])];
@@ -197,4 +197,14 @@ function Papelera() {
   ].sort((a, b) => b.x.deleted_at.localeCompare(a.x.deleted_at));
   if (!items.length) return <div className="muted pad">La papelera está vacía.</div>;
   return (<div className="list">{items.map((i) => <div className="row-card plain" key={i.k + i.x.id}><div className="grow"><b>{i.n}</b><div className="small muted">{i.t} · eliminado {fmtDate(i.x.deleted_at)}</div></div><button className="btn sm" onClick={() => save(() => upd(i.k, i.x.id, { deleted_at: null }), 'Restaurado')}>Restaurar</button></div>)}</div>);
+}
+
+function Accesos() {
+  const { d } = useApp(); const [rows, setRows] = useState<any[] | null>(null); const [err, setErr] = useState('');
+  React.useEffect(() => { fetchAll('fp_portal_accesos', 'ts.desc').then((r) => setRows(r.slice(0, 300))).catch((e) => setErr(e.message)); }, []);
+  const nm = (id: string) => d.personasAll.find((p: any) => p.id === id)?.nombre || '—';
+  if (err) return <div className="warn">{err}</div>; if (!rows) return <div className="muted pad">Cargando…</div>;
+  return (<div className="list"><div className="muted small pad">Cada vez que un alumno/a (o su madre/padre) abre su perfil se anota una vez cada 30 minutos.</div>
+    {rows.length === 0 && <div className="muted pad">Todavía nadie entró a su perfil.</div>}
+    {rows.map((h) => <div className="hrow" key={h.id}><div className="small muted">{new Date(h.ts).toLocaleString('es-PY')} · {h.via}</div><div><b>{nm(h.persona_id)}</b></div></div>)}</div>);
 }

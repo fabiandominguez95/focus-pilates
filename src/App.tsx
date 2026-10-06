@@ -13,8 +13,15 @@ import Config, { Backup } from './pages/Config';
 import { Sheet, Field } from './ui';
 
 function Login({ onDone }: { onDone: () => void }) {
+  const [modo, setModo] = useState<'' | 'equipo'>(() => { try { return localStorage.getItem('fp_nick') ? 'equipo' : ''; } catch { return ''; } });
   const [nick, setNick] = useState(() => { try { return localStorage.getItem('fp_nick') || ''; } catch { return ''; } }); const [pw, setPw] = useState(''); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
   const go = async (e: React.FormEvent) => { e.preventDefault(); setBusy(true); setErr(''); try { await login(nick, pw); try { localStorage.setItem('fp_nick', nick); } catch { /* */ } onDone(); } catch (x: any) { setErr(x.message); } finally { setBusy(false); } };
+  if (!modo) return (
+    <div className="login"><div className="login-card">
+      <div className="brand">Focus Pilates</div><div className="muted" style={{ marginBottom: 26 }}>¿Cómo querés entrar?</div>
+      <button className="btn big" onClick={() => { location.hash = 'mi'; }}>Soy alumno/a</button>
+      <button className="btn ghost big" style={{ marginTop: 10 }} onClick={() => setModo('equipo')}>Soy instructor/a</button>
+      <button className="admin-link" onClick={() => setModo('equipo')}>Administración</button></div></div>);
   return (
     <div className="login"><form onSubmit={go} className="login-card">
       <div className="brand">Focus Pilates</div><div className="muted" style={{ marginBottom: 22 }}>Gestión del estudio · acceso del equipo</div>
@@ -22,7 +29,7 @@ function Login({ onDone }: { onDone: () => void }) {
       <Field label="Contraseña"><input type="password" autoComplete="current-password" value={pw} onChange={(e) => setPw(e.target.value)} autoFocus={!!nick} /></Field>
       {err && <div className="warn" style={{ margin: '8px 0' }}>{err}</div>}
       <button className="btn big" disabled={busy || !nick || !pw}>{busy ? 'Entrando…' : 'Entrar'}</button>
-      <div className="muted small" style={{ marginTop: 16, textAlign: 'center' }}>¿Sos alumna? Entrá con el enlace personal que te envía tu profesora.</div></form></div>
+      <button type="button" className="admin-link" onClick={() => setModo("")}>‹ Volver</button></form></div>
   );
 }
 
@@ -48,7 +55,7 @@ function Shell() {
       <div className="opts">
         <button className="opts-b" onClick={() => setMenu(!menu)} aria-label="Opciones" aria-expanded={menu}>⋯</button>
         {menu && <><div className="opts-scrim" onClick={() => setMenu(false)} /><div className="opts-m">
-          <div className="opts-who">@{me.nick} · {isAdmin ? 'Administrador' : 'Profesora'}</div>
+          <div className="opts-who">@{me.nick} · {isAdmin ? 'Administrador' : 'Instructor/a'}</div>
           {isAdmin && <button onClick={() => go('config')}>Configuración</button>}
           {isAdmin && <button onClick={() => go('reporte')}>Reporte</button>}
           {isAdmin && <button onClick={() => go('backup')}>Backup en Excel</button>}
@@ -81,7 +88,9 @@ export default function App() {
   const [hash, setHash] = useState(location.hash);
   useEffect(() => { const f = () => setHash(location.hash); window.addEventListener('hashchange', f); return () => window.removeEventListener('hashchange', f); }, []);
   const [ok, setOk] = useState(hasSession());
-  if (hash.startsWith('#mi/')) return <Portal token={hash.slice(4)} />;
+  let guardada = false; try { guardada = !!localStorage.getItem('fp_alumna'); } catch { /* */ }
+  if (hash.startsWith('#mi')) return <Portal token={hash.startsWith('#mi/') ? hash.slice(4) : undefined} />;
+  if (!ok && guardada && !hash) return <Portal />;
   if (!ok) return <Login onDone={() => setOk(true)} />;
   return <Provider><Shell /></Provider>;
 }

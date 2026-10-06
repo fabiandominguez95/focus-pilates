@@ -47,7 +47,7 @@ export default function Seguimiento({ openPersona }: { openPersona: (id: string)
 function Pagos({ sg }: { sg: any }) {
   const wa = useWhats();
   return (<div>
-    <div className="muted small pad">Clientas a quienes avisar que se acerca o pasó su vencimiento. Al escribir por WhatsApp salen de la lista.</div>
+    <div className="muted small pad">Clientes a quienes avisar que se acerca o pasó su vencimiento. Al escribir por WhatsApp salen de la lista.</div>
     {sg.pagos.length === 0 && <Empty>Nadie a quien recordarle por ahora.</Empty>}
     <div className="list">{sg.pagos.map(({ p, s, o, dias, due }: any) => (
       <div className="row-card plain" key={p.id}><div className="grow"><b>{p.nombre}</b><div className="small muted">{dias < 0 ? `renueva en ${-dias} día${dias === -1 ? '' : 's'}` : dias === 0 ? 'renueva hoy' : `venció hace ${dias} día${dias === 1 ? '' : 's'}`}</div></div>

@@ -32,8 +32,8 @@ export default function Clientes({ openPersona }: { openPersona: (id: string) =>
     <div className="page">
       <header className="page-head"><h1>Clientes</h1>{isAdmin && <button className="btn sm" onClick={() => setNueva(true)}>+ Nuevo cliente</button>}</header>
       <input className="search" placeholder="Buscar por nombre, celular o nota…" value={q} onChange={(e) => setQ(e.target.value)} />
-      <div className="chips scroll">{F('todas', 'Todas')}{F('inscripta', 'Inscriptas')}{F('prueba', 'Prueba')}{F('atraso', 'Con atraso')}{F('no_renovo', 'No renovó')}{F('no_se_inscribio', 'No se inscribió')}</div>
-      <div className="row2"><select value={orden} onChange={(e) => setOrden(e.target.value)}><option value="nombre">Orden: nombre</option><option value="antiguas">Más antiguas</option><option value="nuevas">Más nuevas</option><option value="atraso">Más atraso</option>{isAdmin && <><option value="ticket">Mayor ticket</option><option value="pagado">Más pagó</option></>}<option value="asistencias">Más asistencias</option></select>
+      <div className="chips scroll">{F('todas', 'Todos')}{F('inscripta', 'Inscriptos/as')}{F('prueba', 'Prueba')}{F('atraso', 'Con atraso')}{F('no_renovo', 'No renovó')}{F('no_se_inscribio', 'No se inscribió')}</div>
+      <div className="row2"><select value={orden} onChange={(e) => setOrden(e.target.value)}><option value="nombre">Orden: nombre</option><option value="antiguas">Más antiguos/as</option><option value="nuevas">Más nuevos/as</option><option value="atraso">Más atraso</option>{isAdmin && <><option value="ticket">Mayor ticket</option><option value="pagado">Más pagó</option></>}<option value="asistencias">Más asistencias</option></select>
         <select value={plan} onChange={(e) => setPlan(e.target.value)}><option value="">Todo plan</option>{d.planes.map((p: any) => <option key={p.id} value={p.id}>{p.nombre}</option>)}</select></div>
       <div className="muted small pad">{list.length} personas</div>
       <div className="list">
@@ -116,7 +116,7 @@ export function PersonaSheet({ id, onClose }: { id: string; onClose: () => void 
         {isAdmin && <button className="btn" onClick={() => setRenew(true)}>{subsMens.length ? 'Renovar' : 'Inscribir'}</button>}
         <button className="btn" onClick={() => setNuevaClase(true)}>Agendar clase</button>
         <button className="btn ghost" disabled={sinCel} onClick={() => wa(p, e.atraso > 0 ? 'atraso' : 'renovacion', { vence: e.sub ? fmtDate(e.sub.fin) : '', plan: e.sub?.plan_nombre || 'plan' })}>WhatsApp</button>
-        {isAdmin && <button className="btn ghost" onClick={() => setPortal(true)}>Enlace de alumna</button>}
+        {isAdmin && <button className="btn ghost" onClick={() => setPortal(true)}>Enlace de alumno/a</button>}
         {isAdmin && <button className="btn ghost" onClick={() => setEdit(!edit)}>{edit ? 'Cerrar edición' : 'Editar'}</button>}
       </div>
       {edit && isAdmin && <EditPersona p={p} onDone={() => setEdit(false)} />}

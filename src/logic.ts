@@ -1,7 +1,7 @@
 import { addDays, diffDays, hm, minToTime, normStr, nowHM, timeToMin } from './util';
 
 export type Stage = 'prueba' | 'inscripta' | 'no_renovo' | 'no_se_inscribio' | 'nuevo' | 'unica';
-export const STAGE_LABEL: Record<Stage, string> = { prueba: 'Prueba', inscripta: 'Inscripta', no_renovo: 'No renovó', no_se_inscribio: 'No se inscribió', nuevo: 'Nueva', unica: 'Clase única' };
+export const STAGE_LABEL: Record<Stage, string> = { prueba: 'Prueba', inscripta: 'Inscripto/a', no_renovo: 'No renovó', no_se_inscribio: 'No se inscribió', nuevo: 'Nuevo/a', unica: 'Clase única' };
 
 export function buildIndex(d: any) {
   const personaById = new Map<string, any>(d.personas.map((p: any) => [p.id, p]));

@@ -17,7 +17,9 @@ function filt(rows, q) { for (const [k, v] of q) { if (['select', 'order', 'limi
     const req = route.request(); const u = new URL(req.url()); const p = u.pathname; const H = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*', 'content-type': 'application/json' };
     if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: H });
     if (p.startsWith('/auth/v1/token')) { const body = JSON.parse(req.postData() || '{}'); if (body.password === 'bad') return route.fulfill({ status: 400, headers: H, body: JSON.stringify({ error_description: 'Invalid login credentials' }) }); return route.fulfill({ headers: H, body: JSON.stringify({ access_token: 'a', refresh_token: 'r', expires_in: 3600, user: { id: USERID } }) }); }
-    if (p === '/rest/v1/rpc/fp_portal') return route.fulfill({ status: 200, headers: { ...H, 'content-type': 'application/json' }, body: JSON.stringify({ nombre: 'Ana Prueba', clases: [{ fecha: '2026-10-01', hora: '09:00:00', tipo: 'regular', estado: 'asistio' }, { fecha: '2026-10-08', hora: '09:00:00', tipo: 'regular', estado: 'agendada' }, { fecha: '2026-10-02', hora: '09:00:00', tipo: 'regular', estado: 'ausente' }], subs: [{ inicio: '2026-09-20', fin: '2026-10-19', plan: 'Plan 2', tipo: 'mensual' }], horarios: [{ dia: 1, hora: '09:00:00' }], recup_dias: 15, estudio: { clases_dadas: 120, desde: '2025-09-15' } }) });
+    const PERF = { nombre: 'Ana Prueba', clases: [{ fecha: '2026-10-01', hora: '09:00:00', tipo: 'regular', estado: 'asistio' }, { fecha: '2026-10-08', hora: '09:00:00', tipo: 'regular', estado: 'agendada' }, { fecha: '2026-10-02', hora: '09:00:00', tipo: 'regular', estado: 'ausente' }], subs: [{ inicio: '2026-09-20', fin: '2026-10-19', plan: 'Plan 2', tipo: 'mensual' }], horarios: [{ dia: 1, hora: '09:00:00' }], recup_dias: 15, estudio: { clases_dadas: 120, desde: '2025-09-15' } };
+    if (p === '/rest/v1/rpc/fp_portal_enlace') return route.fulfill({ status: 200, headers: { ...H, 'content-type': 'application/json' }, body: JSON.stringify([PERF, { ...PERF, nombre: 'Hijo Prueba' }]) });
+    if (p === '/rest/v1/rpc/fp_portal_login') { const b = JSON.parse(req.postData() || '{}'); return route.fulfill({ status: 200, headers: { ...H, 'content-type': 'application/json' }, body: JSON.stringify(b.p_pin === '901134' ? { perfiles: [PERF] } : { error: 'incorrecto' }) }); }
     if (p.startsWith('/rest/v1/')) {
       const t = p.replace('/rest/v1/', ''); const rows = DB[t]; if (!rows) return route.fulfill({ status: 404, headers: H, body: JSON.stringify({ message: 'no table ' + t }) });
       const q = [...u.searchParams.entries()];
@@ -31,6 +33,7 @@ function filt(rows, q) { for (const [k, v] of q) { if (['select', 'order', 'limi
   const base = 'http://localhost:8099/';
   await page.goto(base); await page.waitForTimeout(400);
   await page.screenshot({ path: SCR + 's0_login.png' });
+  await page.screenshot({ path: SCR + 's0_elegir.png' }); await page.click('text=Soy instructor/a');
   await page.fill('input[autocomplete=username]', ROLE); await page.fill('input[type=password]', 'x'); await page.click('button.btn.big'); await page.waitForSelector('.tabbar', { timeout: 8000 });
   await page.waitForTimeout(500);
   await page.screenshot({ path: SCR + `s1_home_${ROLE}.png`, fullPage: true });
@@ -40,6 +43,7 @@ function filt(rows, q) { for (const [k, v] of q) { if (['select', 'order', 'limi
   }
   await page.evaluate(() => (location.hash = 'hoy')); await page.waitForTimeout(300); await page.click('.opts-b'); await page.waitForTimeout(200); await page.screenshot({ path: SCR + `s_menu_${ROLE}.png` }); await page.keyboard.press('Escape'); await page.mouse.click(10, 400);
   await page.evaluate(() => (location.hash = 'mi/' + 'x'.repeat(24))); await page.waitForTimeout(500); await page.screenshot({ path: SCR + 's_portal.png', fullPage: true });
+  await page.evaluate(() => (location.hash = 'mi')); await page.waitForTimeout(400); await page.fill('input[placeholder^="Ej: Dom"]', 'Prueba'); await page.fill('input[inputmode=numeric]', '111111'); await page.click('button.btn.big'); await page.waitForTimeout(500); await page.screenshot({ path: SCR + 's_alumna_err.png' }); await page.fill('input[inputmode=numeric]', '901134'); await page.click('button.btn.big'); await page.waitForTimeout(600); await page.screenshot({ path: SCR + 's_alumna_ok.png' });
   fs.writeFileSync(SCR + 'log.txt', log.join('\n'));
   console.log(log.join('\n') || 'sin errores de consola');
   await b.close();

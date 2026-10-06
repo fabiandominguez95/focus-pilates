@@ -134,7 +134,7 @@ export function ClassSheet({ c, onClose, onOpenPersona }: { c: any; onClose: () 
       {node}
       <div className="kv"><span>{TIPO_LABEL[cur.tipo]}{cur.excepcion ? ' · con excepción' : ''}</span><b>{fmtLong(cur.fecha)} · {hm(cur.hora)}</b></div>
       <div className="kv"><span>Estado</span><b>{({ agendada: 'Agendada', asistio: 'Asistió ✓', ausente: 'Ausente', no_dada: 'Pendiente de reagendar' } as any)[cur.estado]}{cur.motivo_ausencia ? ` · ${motivoLabel(cur.motivo_ausencia)}` : ''}</b></div>
-      {profe && <div className="kv"><span>Profe</span><b>{profe.nombre}</b></div>}
+      {profe && <div className="kv"><span>Instructor/a</span><b>{profe.nombre}</b></div>}
       {cur.fecha_original && cur.fecha_original !== cur.fecha && <div className="kv"><span>{cur.tipo === 'recuperacion' ? 'Faltó el' : 'Original'}</span><b>{fmtDate(cur.fecha_original)} {hm(cur.hora_original)}</b></div>}
       {orig && <div className="kv"><span>Ausencia vinculada</span><b>{fmtDate(orig.fecha)} · {motivoLabel(orig.motivo_ausencia)}</b></div>}
       {cur.estado === 'ausente' && cur.ausencia_resolucion === 'recuperada' && <div className="kv"><span>Recuperada</span><b>sí ↺</b></div>}
