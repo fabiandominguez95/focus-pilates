@@ -93,7 +93,7 @@ function Perfil({ data }: { data: any }) {
   if (subVig) {
     const renueva = addDays(subVig.fin, 1); const falta = diffDays(renueva, hoy);
     const estado = subVig.inicio > hoy ? `Empieza el ${fmtDate(subVig.inicio)}` : hoy <= subVig.fin ? (falta <= 0 ? 'Tu renovación es hoy' : falta <= 3 ? `Se renueva en ${pl(falta, 'día', 'días')}` : `Te quedan ${pl(diffDays(subVig.fin, hoy) + 1, 'día', 'días')} de este período`) : `Tu período terminó el ${fmtDate(subVig.fin)}`;
-    const recordatorio = hoy > subVig.fin ? 'Recordatorio amigable: tu período ya terminó. ¡Te esperamos cuando quieras renovar!' : subVig.inicio <= hoy && falta <= 3 ? `Recordatorio amigable: tu renovación es el ${fmtDate(renueva)}. ¡Gracias por entrenar con nosotros!` : '';
+    const recordatorio = hoy > subVig.fin ? 'Tu período ya terminó. ¡Te esperamos cuando quieras renovar!' : subVig.inicio <= hoy && falta <= 3 ? `Tu renovación es el ${fmtDate(renueva)}. ¡Gracias por entrenar con nosotros!` : '';
     subNode = (<>
       <div className="sub-top"><b>{subVig.plan}</b>{subVig.clases_semana ? <span className="muted"> · {pl(subVig.clases_semana, 'clase', 'clases')} por semana</span> : null}</div>
       <div className="sub-st">{estado}</div>
