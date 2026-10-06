@@ -77,6 +77,7 @@ function Perfil({ data }: { data: any }) {
   const subVig = [...mens].reverse().find((s) => s.inicio <= hoy && hoy <= s.fin) || [...mens].reverse().find((s) => s.inicio > hoy) || mens[mens.length - 1];
   const delPeriodo = subVig ? clases.filter((c) => c.fecha >= subVig.inicio && c.fecha <= subVig.fin && c.tipo !== 'prueba' && c.tipo !== 'recuperacion').sort((a, b) => (a.fecha + a.hora).localeCompare(b.fecha + b.hora)) : [];
 
+  const prog = subVig ? Math.max(0, Math.min(1, (diffDays(hoy, subVig.inicio) + 1) / (diffDays(subVig.fin, subVig.inicio) + 1))) : 0;
   // desde cuándo entrena (cuenta desde su primera clase dada, incluida la prueba)
   const primera = dadas[0]?.fecha || data.alta || null; const dias = primera ? Math.max(0, diffDays(hoy, primera)) : 0;
   // rachas
@@ -92,11 +93,12 @@ function Perfil({ data }: { data: any }) {
   if (subVig) {
     const renueva = addDays(subVig.fin, 1); const falta = diffDays(renueva, hoy);
     const estado = subVig.inicio > hoy ? `Empieza el ${fmtDate(subVig.inicio)}` : hoy <= subVig.fin ? (falta <= 0 ? 'Tu renovación es hoy' : falta <= 3 ? `Se renueva en ${pl(falta, 'día', 'días')}` : `Te quedan ${pl(diffDays(subVig.fin, hoy) + 1, 'día', 'días')} de este período`) : `Tu período terminó el ${fmtDate(subVig.fin)}`;
+    const recordatorio = hoy > subVig.fin ? 'Recordatorio amigable: tu período ya terminó. ¡Te esperamos cuando quieras renovar!' : subVig.inicio <= hoy && falta <= 3 ? `Recordatorio amigable: tu renovación es el ${fmtDate(renueva)}. ¡Gracias por entrenar con nosotros!` : '';
     subNode = (<>
       <div className="sub-top"><b>{subVig.plan}</b>{subVig.clases_semana ? <span className="muted"> · {pl(subVig.clases_semana, 'clase', 'clases')} por semana</span> : null}</div>
       <div className="sub-st">{estado}</div>
       <div className="sub-grid"><div><span>Empezó</span><b>{fmtDate(subVig.inicio)}</b></div><div><span>Termina</span><b>{fmtDate(subVig.fin)}</b></div><div><span>Próxima renovación</span><b>{fmtDate(renueva)}</b></div></div>
-      {hoy > subVig.fin && <div className="muted small" style={{ marginTop: 8 }}>Cuando quieras seguir, avisanos y coordinamos tu horario 💚</div>}
+      {recordatorio && <div className="reminder">💚 {recordatorio}</div>}
     </>);
   }
 
@@ -123,6 +125,15 @@ function Perfil({ data }: { data: any }) {
 
       <section className="card-sub"><div className="sec-head"><h2>Tu suscripción</h2></div><div className="box">{subNode}</div></section>
 
+      {subVig && <section><div className="sec-head"><h2>Tu período</h2><span className="muted small">{fmtDate(subVig.inicio)} → {fmtDate(subVig.fin)}</span></div>
+        <div className="prog"><div className="prog-f" style={{ width: Math.round(prog * 100) + '%' }} /></div><div className="muted small" style={{ margin: '4px 0 10px' }}>{hoy > subVig.fin ? 'Período completo' : subVig.inicio > hoy ? 'Todavía no empezó' : `Día ${diffDays(hoy, subVig.inicio) + 1} de ${diffDays(subVig.fin, subVig.inicio) + 1}`}</div>
+        <div className="squares">{delPeriodo.map((c, i) => {
+          const k = c.estado === 'asistio' ? 'ok' : c.estado === 'ausente' ? (c.res === 'recuperada' ? 'rec' : 'aus') : c.estado === 'no_dada' ? 'no_dada' : 'pend';
+          return <div key={i} className={'sq sq-' + k}><span className="sq-d">{fmtDate(c.fecha)}</span><span className="sq-s">{k === 'ok' ? '✓' : k === 'rec' ? '↺' : ''}</span></div>;
+        })}</div>
+        <div className="legend sq-legend"><span><i className="sq-dot sq-ok" />Fuiste</span><span><i className="sq-dot sq-aus" />Faltaste</span><span><i className="sq-dot sq-rec" />Recuperada</span><span><i className="sq-dot sq-pend" />Pendiente</span></div>
+      </section>}
+
       {primera && dadas.length > 0 && <section><div className="hero">
         <div className="hero-s">{dias < 1 ? '¡Qué lindo empezar!' : 'Hace'}</div>
         <div className="hero-n">{tiempoJuntos(dias)}</div>
@@ -137,13 +148,6 @@ function Perfil({ data }: { data: any }) {
       {porRecup.length > 0 && <section><div className="sec-head"><h2>Para recuperar</h2></div>
         <div className="list">{porRecup.map((c, i) => <div key={i} className="row-card plain"><div className="grow"><b>Faltaste el {fmtDate(c.fecha)}</b><div className="small muted">Te quedan {pl(recup - diffDays(hoy, c.fecha), 'día', 'días')} para recuperarla. Escribile a tu instructor/a.</div></div></div>)}</div></section>}
 
-      {subVig && delPeriodo.length > 0 && <section><div className="sec-head"><h2>Tu período</h2></div>
-        <div className="squares">{delPeriodo.map((c, i) => {
-          const k = c.estado === 'asistio' ? 'ok' : c.estado === 'ausente' ? (c.res === 'recuperada' ? 'rec' : 'aus') : c.estado === 'no_dada' ? 'no_dada' : 'pend';
-          return <div key={i} className={'sq sq-' + k}><span className="sq-d">{fmtDate(c.fecha)}</span><span className="sq-s">{k === 'ok' ? '✓' : k === 'rec' ? '↺' : ''}</span></div>;
-        })}</div>
-        <div className="legend sq-legend"><span><i className="sq-dot sq-ok" />Fuiste</span><span><i className="sq-dot sq-aus" />Faltaste</span><span><i className="sq-dot sq-rec" />Recuperada</span><span><i className="sq-dot sq-pend" />Pendiente</span></div>
-      </section>}
 
       <section><div className="sec-head"><h2>Tus rachas</h2></div>
         <div className="stats">
