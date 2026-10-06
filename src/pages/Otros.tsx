@@ -41,25 +41,3 @@ function ProdForm({ p, onClose }: { p: any; onClose: () => void }) {
     {p.id && <button className="btn ghost danger" onClick={async () => { await upd('productos', p.id, { deleted_at: new Date().toISOString() }); onClose(); }}>Quitar producto</button>}</div>);
 }
 
-export function Recuperar({ openPersona }: { openPersona: (id: string) => void }) {
-  const { d, cfg, hoy, isAdmin, upd, toast } = useApp(); const idx = useMemo(() => buildIndex(d), [d]); const wa = useWhats();
-  const [tab, setTab] = useState<'no_se_inscribio' | 'no_renovo'>('no_se_inscribio');
-  const lastContact = useMemo(() => { const m = new Map<string, string>(); d.avisos.forEach((a: any) => { if (!a.tipo.startsWith('invitacion')) return; const f = (a.creado_en || '').slice(0, 10); if (!m.has(a.persona_id) || f > m.get(a.persona_id)!) m.set(a.persona_id, f); }); return m; }, [d.avisos]);
-  const rows = useMemo(() => d.personas.map((p: any) => ({ p, e: estadoPersona(p, idx, cfg, hoy), s: personaStats(p, idx, hoy, cfg.recup_dias) })).filter((r: any) => r.e.stage === tab), [d, idx, cfg, hoy, tab]);
-  const items = rows.map((r: any) => { const lc = lastContact.get(r.p.id); const since = lc ? diffDays(hoy, lc) : null; const ok = !r.p.no_contactar && !!r.p.celular && (since === null || since >= cfg.espera_contacto_dias); return { ...r, lc, since, ok }; });
-  const listos = items.filter((x: any) => x.ok).sort((a: any, b: any) => (b.s.ultima || '').localeCompare(a.s.ultima || '')); const esperando = items.filter((x: any) => !x.ok);
-  const escribir = (x: any) => wa(x.p, tab === 'no_se_inscribio' ? 'invitacion_prueba' : 'invitacion_inactiva', {}, { tipo: tab === 'no_se_inscribio' ? 'invitacion_prueba' : 'invitacion_inactiva', ref: hoy });
-  return (
-    <div className="page"><header className="page-head"><h1>Recuperar contactos</h1></header>
-      <Seg value={tab} onChange={setTab} options={[['no_se_inscribio', 'Solo hicieron prueba'], ['no_renovo', 'Dejaron de venir']]} />
-      <div className="muted small pad">{listos.length} para escribir ahora · espera de {cfg.espera_contacto_dias} días entre mensajes (se cambia en Configuración).</div>
-      {listos.length === 0 && <Empty>No hay nadie para contactar ahora.</Empty>}
-      <div className="list">{listos.map((x: any) => (
-        <div className="row-card plain" key={x.p.id}><div className="grow" onClick={() => openPersona(x.p.id)}><b>{x.p.nombre}</b><div className="small muted">{x.s.ultima ? `última clase ${fmtDate(x.s.ultima)}` : 'sin clases'}{x.lc ? ` · le escribiste hace ${x.since} d` : ''}</div></div>
-          <button className="btn sm" onClick={() => escribir(x)}>Invitar</button>
-          {isAdmin && <button className="x2" title="No contactar" onClick={() => upd('personas', x.p.id, { no_contactar: true }).then(() => toast('Marcada como no contactar'))}>⊘</button>}</div>))}</div>
-      {esperando.length > 0 && <><h3>En espera / no contactar ({esperando.length})</h3><div className="list dim">{esperando.map((x: any) => (
-        <div className="row-card plain" key={x.p.id} onClick={() => openPersona(x.p.id)}><div className="grow"><b>{x.p.nombre}</b><div className="small muted">{x.p.no_contactar ? 'No contactar' : !x.p.celular ? 'Sin celular' : `le escribiste hace ${x.since} d · de nuevo en ${cfg.espera_contacto_dias - x.since} d`}</div></div></div>))}</div></>}
-    </div>
-  );
-}

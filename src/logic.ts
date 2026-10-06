@@ -1,4 +1,4 @@
-import { addDays, diffDays, hm, normStr, nowHM, timeToMin } from './util';
+import { addDays, diffDays, hm, minToTime, normStr, nowHM, timeToMin } from './util';
 
 export type Stage = 'prueba' | 'inscripta' | 'no_renovo' | 'no_se_inscribio' | 'nuevo' | 'unica';
 export const STAGE_LABEL: Record<Stage, string> = { prueba: 'Prueba', inscripta: 'Inscripta', no_renovo: 'No renovó', no_se_inscribio: 'No se inscribió', nuevo: 'Nueva', unica: 'Clase única' };
@@ -70,7 +70,9 @@ export function personaStats(p: any, idx: Index, hoy: string, recupDias: number)
   const recup = clases.filter((c) => c.tipo === 'recuperacion' && c.estado === 'asistio');
   const pagado = subs.reduce((a, s) => a + (Number(s.pago_monto) || 0), 0);
   const pagos = subs.filter((s) => s.pago_fecha);
-  const primera = clases[0]?.fecha || subs[0]?.inicio || p.fecha_alta || null;
+  const firstSub = subs.filter((x: any) => x.tipo !== 'unica')[0]?.inicio; const firstReal = clases.find((c: any) => c.tipo !== 'prueba')?.fecha;
+  const cand = [firstSub, firstReal].filter(Boolean).sort(); // la antigüedad cuenta desde que se inscribió, no desde la prueba
+  const primera = cand[0] || clases[0]?.fecha || p.fecha_alta || null;
   const ant = primera ? diffDays(hoy, primera) : 0;
   const ultima = clases.filter((c) => c.estado === 'asistio').map((c) => c.fecha).sort().pop() || null;
   return { clases, subs, asist: asist.length, ausentes: ausentes.length, recup: recup.length, pagado, nPagos: pagos.length, ticket: pagos.length ? pagado / pagos.length : 0, primera, antiguedadDias: ant, ultima, meses: subs.filter((s) => s.tipo !== 'unica').length };
@@ -108,3 +110,9 @@ export function matchPersona(p: any, q: string) {
   return n.split(/\s+/).every((t) => hay.includes(t));
 }
 export { addDays };
+
+export function horasDisponibles(cfg: any) {
+  const a = timeToMin(cfg.apertura), c = timeToMin(cfg.cierre); const out: string[] = [];
+  for (let m = Math.ceil(a / 60) * 60; m + 60 <= c; m += 60) out.push(minToTime(m)); // siempre en punto
+  return out;
+}

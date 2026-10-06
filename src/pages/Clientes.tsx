@@ -6,19 +6,9 @@ import { ClassSheet, NewClassSheet, SlotPicker, useClassOps, useSlotCheck, useWh
 import { RenewSheet, PagoSheet, grupoDe } from '../subs';
 import { diffDays, fmtDate, fmtDateY, gs, hm, normPhone, phonePretty, DIAS3, fmtLong } from '../util';
 import { historial } from '../api';
-import { horasDisponibles } from '../classes';
-
-export function PersonaPicker({ value, onChange, exclude, placeholder = 'Buscar persona…' }: { value: string; onChange: (id: string) => void; exclude?: string; placeholder?: string }) {
-  const { d } = useApp(); const [q, setQ] = useState('');
-  const sel = d.personas.find((p: any) => p.id === value);
-  const list = useMemo(() => (q ? d.personas.filter((p: any) => p.id !== exclude && matchPersona(p, q)).slice(0, 6) : []), [q, d.personas, exclude]);
-  return (
-    <div>
-      {sel ? <div className="row"><span className="chip on">{sel.nombre}</span><button className="btn sm ghost" onClick={() => onChange('')}>Quitar</button></div>
-        : <><input placeholder={placeholder} value={q} onChange={(e) => setQ(e.target.value)} />{list.length > 0 && <div className="pick">{list.map((p: any) => <button key={p.id} onClick={() => { onChange(p.id); setQ(''); }}>{p.nombre}</button>)}</div>}</>}
-    </div>
-  );
-}
+import { PersonaPicker } from '../picker';
+import { Facts } from './Reportes';
+import { horasDisponibles } from '../logic';
 
 export function StageBadge({ e }: { e: any }) {
   return <span className={'badge st-' + e.stage + (e.color ? ' c-' + e.color : '')}>{STAGE_LABEL[e.stage as keyof typeof STAGE_LABEL]}{e.color ? ` · ${e.atraso} d` : ''}</span>;
@@ -40,7 +30,7 @@ export default function Clientes({ openPersona }: { openPersona: (id: string) =>
   const F = (v: string, l: string) => <button className={'chip' + (fil === v ? ' on' : '')} onClick={() => setFil(v)}>{l} <small>{counts[v]}</small></button>;
   return (
     <div className="page">
-      <header className="page-head"><h1>Clientes</h1>{isAdmin && <button className="btn sm" onClick={() => setNueva(true)}>+ Nueva</button>}</header>
+      <header className="page-head"><h1>Clientes</h1>{isAdmin && <button className="btn sm" onClick={() => setNueva(true)}>+ Nuevo cliente</button>}</header>
       <input className="search" placeholder="Buscar por nombre, celular o nota…" value={q} onChange={(e) => setQ(e.target.value)} />
       <div className="chips scroll">{F('todas', 'Todas')}{F('inscripta', 'Inscriptas')}{F('prueba', 'Prueba')}{F('atraso', 'Con atraso')}{F('no_renovo', 'No renovó')}{F('no_se_inscribio', 'No se inscribió')}</div>
       <div className="row2"><select value={orden} onChange={(e) => setOrden(e.target.value)}><option value="nombre">Orden: nombre</option><option value="antiguas">Más antiguas</option><option value="nuevas">Más nuevas</option><option value="atraso">Más atraso</option>{isAdmin && <><option value="ticket">Mayor ticket</option><option value="pagado">Más pagó</option></>}<option value="asistencias">Más asistencias</option></select>
@@ -54,33 +44,38 @@ export default function Clientes({ openPersona }: { openPersona: (id: string) =>
         {list.length > 200 && <div className="muted small pad">Mostrando 200. Usá la búsqueda para afinar.</div>}
       </div>
       {nueva && <NuevaPersona onClose={() => setNueva(false)} onCreated={(id) => { setNueva(false); openPersona(id); }} />}
+      <div style={{ marginTop: 28 }}><Facts openPersona={openPersona} embedded /></div>
     </div>
   );
 }
 
 function NuevaPersona({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
   const { d, cfg, hoy, ins, toast } = useApp(); const ops = useClassOps(); const { check, node } = useSlotCheck();
-  const [nombre, setNombre] = useState(''); const [cel, setCel] = useState(''); const [tutor, setTutor] = useState(''); const [prueba, setPrueba] = useState(true); const [f, setF] = useState(hoy); const [h, setH] = useState(''); const [nota, setNota] = useState(''); const [busy, setBusy] = useState(false);
+  const [nombre, setNombre] = useState(''); const [cel, setCel] = useState(''); const [tutor, setTutor] = useState(''); const [modo, setModo] = useState<'prueba' | 'directo' | 'datos'>('prueba'); const [f, setF] = useState(hoy); const [h, setH] = useState(''); const [nota, setNota] = useState(''); const [busy, setBusy] = useState(false);
+  const [renewP, setRenewP] = useState<any>(null);
   const dup = d.personas.find((p: any) => p.nombre.trim().toLowerCase() === nombre.trim().toLowerCase());
   const guardar = async () => {
-    if (!nombre.trim()) return; if (prueba && h && !(await check(f, h))) return;
+    if (!nombre.trim()) return; if (modo === 'prueba' && h && !(await check(f, h))) return;
     setBusy(true);
     try {
-      const p = await ins('personas', { nombre: nombre.trim(), celular: normPhone(cel, cfg.pais_tel) || null, tutor_id: tutor || null, notas: nota || null, origen: 'app', fecha_alta: hoy, prueba_fecha: prueba && h ? f : null });
-      if (prueba && h) await ops.crear({ persona_id: p.id, fecha: f, hora: h, tipo: 'prueba' });
-      toast('Persona creada'); onCreated(p.id);
+      const p = await ins('personas', { nombre: nombre.trim(), celular: normPhone(cel, cfg.pais_tel) || null, tutor_id: tutor || null, notas: nota || null, origen: 'app', fecha_alta: hoy, prueba_fecha: modo === 'prueba' && h ? f : null, sin_prueba: modo === 'directo' });
+      if (modo === 'prueba' && h) await ops.crear({ persona_id: p.id, fecha: f, hora: h, tipo: 'prueba' });
+      if (modo === 'directo') { setRenewP(p); return; }
+      toast('Cliente creado'); onCreated(p.id);
     } catch (e: any) { toast('Error: ' + e.message); } finally { setBusy(false); }
   };
+  if (renewP) return <RenewSheet persona={renewP} onClose={() => { onCreated(renewP.id); }} />;
   return (
-    <Sheet title="Nueva persona" onClose={onClose}>{node}
+    <Sheet title="Nuevo cliente" onClose={onClose}>{node}
       <div className="stack">
-        <Field label="Nombre y apellido"><input value={nombre} onChange={(e) => setNombre(e.target.value)} autoFocus />{dup && <em className="warn">Ya existe una persona con ese nombre.</em>}</Field>
+        <Field label="Nombre y apellido"><input value={nombre} onChange={(e) => setNombre(e.target.value)} autoFocus />{dup && <em className="warn">Ya existe alguien con ese nombre.</em>}</Field>
         <Field label="Celular" hint="Ej: 0981 123 456 — se guarda con código de país"><input inputMode="tel" value={cel} onChange={(e) => setCel(e.target.value)} /></Field>
-        <Field label="Tutor (si es menor)"><PersonaPicker value={tutor} onChange={setTutor} /></Field>
+        <Field label="Tutor (si es menor)" hint="Buscá a la persona; si todavía no está cargada, podés crearla desde acá."><PersonaPicker value={tutor} onChange={setTutor} /></Field>
         <Field label="Notas"><input value={nota} onChange={(e) => setNota(e.target.value)} /></Field>
-        <label className="check"><input type="checkbox" checked={prueba} onChange={(e) => setPrueba(e.target.checked)} /> Agendar clase de prueba ahora</label>
-        {prueba && <SlotPicker fecha={f} hora={h} onChange={(a, b) => { setF(a); setH(b); }} />}
-        <button className="btn big" disabled={busy || !nombre.trim()} onClick={guardar}>Crear</button>
+        <Field label="¿Cómo empieza?"><div className="chips wrap">{([['prueba', 'Clase de prueba'], ['directo', 'Se inscribe directo (sin prueba)'], ['datos', 'Solo guardar datos']] as const).map(([k, l]) => <button type="button" key={k} className={'chip' + (modo === k ? ' on' : '')} onClick={() => setModo(k)}>{l}</button>)}</div></Field>
+        {modo === 'prueba' && <SlotPicker fecha={f} hora={h} onChange={(a, b) => { setF(a); setH(b); }} />}
+        {modo === 'directo' && <div className="muted small">Al continuar elegís plan, monto, días y horarios.</div>}
+        <button className="btn big" disabled={busy || !nombre.trim()} onClick={guardar}>{modo === 'directo' ? 'Continuar a inscripción →' : 'Crear'}</button>
       </div>
     </Sheet>
   );
@@ -101,7 +96,7 @@ export function PersonaSheet({ id, onClose }: { id: string; onClose: () => void 
   const idx = useMemo(() => buildIndex(d), [d]);
   const p = idx.personaById.get(id); const wa = useWhats(); const { ask, node } = useConfirm();
   const [renew, setRenew] = useState(false); const [pago, setPago] = useState<any>(null); const [cls, setCls] = useState<any>(null); const [nuevaClase, setNuevaClase] = useState(false);
-  const [edit, setEdit] = useState(false); const [verTodas, setVerTodas] = useState(false); const [hist, setHist] = useState<any[] | null>(null);
+  const [portal, setPortal] = useState(false); const [edit, setEdit] = useState(false); const [verTodas, setVerTodas] = useState(false); const [hist, setHist] = useState<any[] | null>(null);
   if (!p) return null;
   const e = estadoPersona(p, idx, cfg, hoy); const s = personaStats(p, idx, hoy, cfg.recup_dias);
   const hor = (idx.horByP.get(p.id) || []).sort((a: any, b: any) => a.dia - b.dia || a.hora.localeCompare(b.hora));
@@ -121,6 +116,7 @@ export function PersonaSheet({ id, onClose }: { id: string; onClose: () => void 
         {isAdmin && <button className="btn" onClick={() => setRenew(true)}>{subsMens.length ? 'Renovar' : 'Inscribir'}</button>}
         <button className="btn" onClick={() => setNuevaClase(true)}>Agendar clase</button>
         <button className="btn ghost" disabled={sinCel} onClick={() => wa(p, e.atraso > 0 ? 'atraso' : 'renovacion', { vence: e.sub ? fmtDate(e.sub.fin) : '', plan: e.sub?.plan_nombre || 'plan' })}>WhatsApp</button>
+        {isAdmin && <button className="btn ghost" onClick={() => setPortal(true)}>Enlace de alumna</button>}
         {isAdmin && <button className="btn ghost" onClick={() => setEdit(!edit)}>{edit ? 'Cerrar edición' : 'Editar'}</button>}
       </div>
       {edit && isAdmin && <EditPersona p={p} onDone={() => setEdit(false)} />}
@@ -158,6 +154,7 @@ export function PersonaSheet({ id, onClose }: { id: string; onClose: () => void 
         {isAdmin && <button className="btn ghost sm danger" onClick={archivar}>Enviar a papelera</button>}</div>
       {hist && <div className="box small">{hist.length === 0 ? 'Sin cambios registrados.' : hist.map((h: any) => <div key={h.id} className="kv"><span>{new Date(h.ts).toLocaleString('es-PY')} · {h.nick}</span><b>{h.accion}</b></div>)}</div>}
 
+      {portal && <PortalLink p={p} onClose={() => setPortal(false)} />}
       {renew && <RenewSheet persona={p} onClose={() => setRenew(false)} />}
       {pago && <PagoSheet sub={pago} onClose={() => setPago(null)} />}
       {cls && <ClassSheet c={cls} onClose={() => setCls(null)} />}
@@ -198,3 +195,15 @@ function EditPersona({ p, onDone }: { p: any; onDone: () => void }) {
   );
 }
 export { Chips, TIPO_LABEL, motivoLabel, COLOR_NAME, clasesDeHorario, diffDays, fmtLong };
+
+function PortalLink({ p, onClose }: { p: any; onClose: () => void }) {
+  const { cfg, toast } = useApp(); const url = `${location.origin}${location.pathname}#mi/${p.portal_token}`;
+  const msg = `Hola ${p.nombre.split(' ')[0]}! Acá podés ver tus clases, asistencias y recuperaciones en Focus Pilates (guardá el enlace): ${url}`;
+  const tel = normPhone(p.celular || '', cfg.pais_tel);
+  return (<Sheet title={'Enlace de ' + p.nombre.split(' ')[0]} onClose={onClose}><div className="stack">
+    <div className="muted small">Es personal: quien lo tenga ve las clases y asistencias de esta persona (nunca montos). No necesita usuario ni contraseña.</div>
+    <input readOnly value={url} onFocus={(e) => e.target.select()} />
+    <button className="btn" onClick={async () => { try { await navigator.clipboard.writeText(url); toast('Enlace copiado'); } catch { toast('Copialo manualmente'); } }}>Copiar enlace</button>
+    <button className="btn ghost" disabled={!tel} onClick={() => window.open(`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`, '_blank')}>{tel ? 'Enviar por WhatsApp' : 'Sin celular cargado'}</button>
+  </div></Sheet>);
+}

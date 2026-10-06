@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useApp } from '../store';
 import { buildIndex, slotKey } from '../logic';
 import { Seg } from '../ui';
-import { ClassSheet, NewClassSheet, TIPO_LABEL, horasDisponibles, motivoLabel } from '../classes';
+import { ClassSheet, NewClassSheet, TIPO_LABEL, horasDisponibles, motivoLabel, QuienesSheet, useLongPress } from '../classes';
 import { addDays, DIAS3, dowISO, fmtDate, fmtLong, hm, monthLabel, parseD, ymd, addMonthKey, normStr } from '../util';
 
 export default function Agenda({ openPersona }: { openPersona: (id: string) => void }) {
@@ -10,7 +10,7 @@ export default function Agenda({ openPersona }: { openPersona: (id: string) => v
   const idx = useMemo(() => buildIndex(d), [d]);
   const [fecha, setFecha] = useState(hoy); const [vista, setVista] = useState<'dia' | 'semana' | 'lista'>('dia');
   const [quick, setQuick] = useState('todo'); const [tipo, setTipo] = useState(''); const [estado, setEstado] = useState(''); const [profe, setProfe] = useState(''); const [q, setQ] = useState('');
-  const [more, setMore] = useState(false); const [sel, setSel] = useState<any>(null); const [nuevo, setNuevo] = useState<any>(null);
+  const [who, setWho] = useState<string | null>(null); const [more, setMore] = useState(false); const [sel, setSel] = useState<any>(null); const [nuevo, setNuevo] = useState<any>(null);
 
   const filtrar = (c: any) => {
     if (quick === 'rec' && c.tipo !== 'recuperacion') return false;
@@ -55,7 +55,7 @@ export default function Agenda({ openPersona }: { openPersona: (id: string) => v
             const b = bloqDe(fecha, h);
             return (
               <div className="hour" key={h}>
-                <div className="hour-h"><b>{h}</b><small className={all >= cfg.cupo ? 'full' : ''}>{all}/{cfg.cupo}</small></div>
+                <HourHead h={h} all={all} cupo={cfg.cupo} onWho={() => setWho(h)} />
                 <div className="hour-b">
                   {b && <div className="blk">⛔ {b.motivo}</div>}
                   {cs.map((c: any) => <ClassPill key={c.id} c={c} idx={idx} onClick={() => setSel(c)} />)}
@@ -80,6 +80,7 @@ export default function Agenda({ openPersona }: { openPersona: (id: string) => v
             <div className="time sm">{fmtDate(c.fecha)}<br />{hm(c.hora)}</div><div className="grow"><b>{idx.personaById.get(c.persona_id)?.nombre}</b><div className="small muted">{TIPO_LABEL[c.tipo]}{c.estado === 'ausente' ? ` · ${motivoLabel(c.motivo_ausencia)}` : ''}</div></div>{c.estado === 'asistio' && <span className="tick">✓</span>}</div>)}
           {lista.length > 300 && <div className="muted small pad">Mostrando 300 de {lista.length}. Afiná los filtros.</div>}</div>
       )}
+      {who && <QuienesSheet fecha={fecha} hora={who} onClose={() => setWho(null)} />}
       {sel && <ClassSheet c={sel} onClose={() => setSel(null)} onOpenPersona={openPersona} />}
       {nuevo && <NewClassSheet onClose={() => setNuevo(null)} presetFecha={nuevo.f} presetHora={nuevo.h} />}
     </div>
@@ -90,4 +91,9 @@ export function ClassPill({ c, idx, onClick }: { c: any; idx: any; onClick: () =
   const p = idx.personaById.get(c.persona_id);
   const cls = c.estado === 'asistio' ? 'done' : c.estado === 'ausente' ? 'aus' : c.estado === 'no_dada' ? 't-nodada' : 't-' + c.tipo;
   return <button className={'pill ' + cls} onClick={onClick}>{c.estado === 'asistio' ? '✓ ' : c.tipo === 'recuperacion' ? '↺ ' : ''}{p?.nombre}{c.tipo === 'prueba' ? ' · prueba' : ''}{c.estado === 'ausente' ? ' · ausente' : ''}</button>;
+}
+
+function HourHead({ h, all, cupo, onWho }: { h: string; all: number; cupo: number; onWho: () => void }) {
+  const lp = useLongPress(onWho);
+  return <div className="hour-h" {...lp} title="Mantené presionado (o clic derecho) para ver quiénes están"><b>{h}</b><small className={all >= cupo ? 'full' : ''}>{all}/{cupo}</small></div>;
 }

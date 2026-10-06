@@ -74,3 +74,10 @@ export async function adminFn(body: any) {
   if (!r.ok) throw new Error(j.error || 'Error');
   return j;
 }
+
+// Llamada pública (sin sesión) a una función de la base: portal de alumnas
+export async function rpcAnon(fn: string, args: any) {
+  const r = await fetch(`${SB_URL}/rest/v1/rpc/${fn}`, { method: 'POST', headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, 'Content-Type': 'application/json' }, body: JSON.stringify(args) });
+  if (!r.ok) throw new Error('No se pudo cargar');
+  return r.json();
+}

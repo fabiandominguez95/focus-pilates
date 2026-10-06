@@ -43,7 +43,7 @@ export default function Reportes() {
   );
 }
 
-export function Facts({ openPersona }: { openPersona: (id: string) => void }) {
+export function Facts({ openPersona, embedded }: { openPersona: (id: string) => void; embedded?: boolean }) {
   const { d, cfg, hoy, isAdmin } = useApp(); const idx = useMemo(() => buildIndex(d), [d]);
   const f = useMemo(() => {
     const rows = d.personas.map((p: any) => ({ p, s: personaStats(p, idx, hoy, cfg.recup_dias), e: estadoPersona(p, idx, cfg, hoy) }));
@@ -66,7 +66,7 @@ export function Facts({ openPersona }: { openPersona: (id: string) => void }) {
   const Card = ({ t, children }: any) => <div className="box fact"><h4>{t}</h4>{children}</div>;
   const Top = ({ list, fmt }: any) => <ol className="top">{list.map((r: any) => <li key={r.p.id}><button onClick={() => openPersona(r.p.id)}>{r.p.nombre}</button><b>{fmt(r)}</b></li>)}</ol>;
   return (
-    <div className="page"><header className="page-head"><h1>Datos curiosos</h1></header>
+    <div className={embedded ? 'facts-emb' : 'page'}>{embedded ? <h2 style={{ marginBottom: 10 }}>Datos curiosos</h2> : <header className="page-head"><h1>Datos curiosos</h1></header>}
       <div className="kpis">
         <div className="kpi"><span>Abiertas desde</span><b>{f.prim ? fmtDateY(f.prim) : '—'}</b><small>{f.mesesAbierto} meses</small></div>
         <div className="kpi"><span>Clases dadas</span><b>{num(f.dadas.length)}</b><small>{num(f.slots)} horarios con alumnas</small></div>
