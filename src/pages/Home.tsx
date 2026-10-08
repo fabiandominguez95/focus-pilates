@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../store';
-import { buildIndex, claseTerminada } from '../logic';
+import { buildIndex, claseTerminada, recupRestante } from '../logic';
 import { Ring, Empty } from '../ui';
-import { ClassSheet, NewClassSheet, TIPO_LABEL, useClassOps, useWhats, SlotPicker, useSlotCheck, motivoLabel } from '../classes';
+import { ClassSheet, NewClassSheet, TIPO_LABEL, useClassOps, useWhats, useUndoAviso, SlotPicker, useSlotCheck, motivoLabel } from '../classes';
 import { RenewSheet } from '../subs';
 import { useSeguimiento } from './Seguimiento';
 import { Sheet } from '../ui';
@@ -12,7 +12,7 @@ import { addDays, diffDays, fmtDate, fmtLong, hm, timeToMin } from '../util';
 export default function Home({ openPersona }: { openPersona: (id: string) => void }) {
   const { d, cfg, hoy } = useApp();
   const idx = useMemo(() => buildIndex(d), [d]);
-  const ops = useClassOps(); const wa = useWhats(); const { check, node } = useSlotCheck();
+  const ops = useClassOps(); const wa = useWhats(); const undoWa = useUndoAviso(); const { check, node } = useSlotCheck();
   const [sel, setSel] = useState<any>(null); const [nuevo, setNuevo] = useState(false); const [renew, setRenew] = useState<any>(null);
   const [more, setMore] = useState<Record<string, boolean>>({}); const lim = (k: string, a: any[]) => (more[k] ? a : a.slice(0, 5)); const MoreBtn = ({ k, n }: { k: string; n: number }) => (n > 5 ? <button className="btn ghost sm" style={{ marginTop: 8 }} onClick={() => setMore({ ...more, [k]: !more[k] })}>{more[k] ? 'Ver menos' : `Ver las ${n}`}</button> : null);
   const [fixing, setFixing] = useState<any>(null); const [fx, setFx] = useState({ f: hoy, h: '' });
@@ -23,18 +23,20 @@ export default function Home({ openPersona }: { openPersona: (id: string) => voi
   const totalDia = delDia.length - noCuentan;
   const porCerrar = d.clases.filter((c: any) => c.fecha < hoy && c.estado === 'agendada').sort((a: any, b: any) => (b.fecha + b.hora).localeCompare(a.fecha + a.hora));
   const aConfirmar = d.clases.filter((c: any) => c.estado === 'no_dada' && c.a_confirmar);
+  const porRecuperar = d.clases.filter((c: any) => c.estado === 'ausente' && !c.ausencia_resolucion && c.tipo !== 'prueba' && c.fecha <= hoy && recupRestante(c, hoy, cfg.recup_dias) >= 0).sort((a: any, b: any) => recupRestante(a, hoy, cfg.recup_dias) - recupRestante(b, hoy, cfg.recup_dias));
 
   const avisosSet = useMemo(() => { const s = new Set<string>(); d.avisos.forEach((a: any) => s.add(a.tipo + '|' + a.ref + '|' + a.persona_id)); return s; }, [d.avisos]);
   const sg = useSeguimiento();
   const [inscr, setInscr] = useState<any>(null);
   const sePudo = async (c: any) => { const ok = await ops.asistio(c); if (ok && c.tipo === 'prueba') { const p = idx.personaById.get(c.persona_id); const ya = (idx.subsByP.get(c.persona_id) || []).some((s: any) => s.tipo !== 'unica'); if (p && !ya) setInscr(p); } };
   const sinTareas = !sg.pendientes && !porCerrar.length && !aConfirmar.length && dadas === totalDia;
+  const diaListo = sinTareas && totalDia > 0;
 
   return (
     <div className="page">
       {node}
-      <header className="home-head">
-        <div><div className="eyebrow">Hoy</div><h1>{fmtLong(hoy)}</h1><div className="muted">{totalDia ? `${dadas} de ${totalDia} clases dadas` : 'Sin clases hoy'}</div></div>
+      <header className={'home-head' + (diaListo ? ' alldone' : '')}>
+        <div><div className="eyebrow">{diaListo ? '✓ Todo al día' : 'Hoy'}</div><h1>{fmtLong(hoy)}</h1><div className="muted">{diaListo ? 'Día superado: clases y seguimiento al día' : totalDia ? `${dadas} de ${totalDia} clases dadas` : 'Sin clases hoy'}</div></div>
         <Ring done={dadas} total={totalDia} />
       </header>
 
@@ -49,7 +51,7 @@ export default function Home({ openPersona }: { openPersona: (id: string) => voi
               <div key={c.id} className={'row-card ' + cls} onClick={() => setSel(c)}>
                 <div className="time">{hm(c.hora)}</div>
                 <div className="grow"><b>{p?.nombre}</b><div className="small muted">{TIPO_LABEL[c.tipo]}{c.estado === 'ausente' ? ` · ausente · ${motivoLabel(c.motivo_ausencia)}` : ''}{c.fecha_original && c.fecha_original !== c.fecha ? ` · reagendada` : ''}</div></div>
-                {c.estado === 'agendada' && <WaDot done={avisosSet.has('confirmacion|' + hoy + '|' + c.persona_id)} onClick={() => p && wa(p, 'confirmacion', { hora: hm(c.hora) }, { tipo: 'confirmacion', ref: hoy })} />}
+                {c.estado === 'agendada' && <WaDot done={avisosSet.has('confirmacion|' + hoy + '|' + c.persona_id)} onUndo={() => undoWa(c.persona_id, 'confirmacion', hoy)} onClick={() => p && wa(p, 'confirmacion', { hora: hm(c.hora) }, { tipo: 'confirmacion', ref: hoy })} />}
                 {c.estado === 'asistio' ? <span className="tick">✓</span> : c.estado === 'agendada' && fin ? <button className="btn sm ok" onClick={(e) => { e.stopPropagation(); sePudo(c); }}>Se dio</button> : <span className="chev">›</span>}
               </div>
             );
@@ -72,6 +74,16 @@ export default function Home({ openPersona }: { openPersona: (id: string) => voi
           <span className={'chk' + (sg.pendientes ? '' : ' on')}>{sg.pendientes ? '' : '✓'}</span>
           <div className="grow"><b>Revisar seguimiento</b><div className="small muted">{sg.pendientes ? `${sg.pendientes} por resolver: recordar pagos y renovaciones` : 'Todo revisado'}</div></div><span className="chev">›</span></div>
       </section>
+
+      {porRecuperar.length > 0 && (
+        <section><div className="sec-head"><h2>Pendientes de recuperar</h2><span className="count">{porRecuperar.length}</span></div>
+          <div className="muted small pad">Faltaron y todavía no tienen fecha para recuperar. Tocá para elegir día o dejarlo para más adelante.</div>
+          <div className="list">{lim('rec', porRecuperar).map((c: any) => { const l = recupRestante(c, hoy, cfg.recup_dias); return (
+            <div key={c.id} className="row-card t-nodada" onClick={() => setSel(c)}>
+              <div className="time sm">{fmtDate(c.fecha)}<br />{hm(c.hora)}</div>
+              <div className="grow"><b>{idx.personaById.get(c.persona_id)?.nombre}</b><div className="small muted">{motivoLabel(c.motivo_ausencia)} · {l === 0 ? 'último día' : `quedan ${l} día${l === 1 ? '' : 's'}`}</div></div><span className="chev">›</span></div>); })}</div>
+          <MoreBtn k="rec" n={porRecuperar.length} /></section>
+      )}
 
       {aConfirmar.length > 0 && (
         <section><div className="sec-head"><h2>Pendientes de reagendar</h2><span className="count">{aConfirmar.length}</span></div>

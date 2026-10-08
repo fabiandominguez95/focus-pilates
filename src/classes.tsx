@@ -32,6 +32,13 @@ export function useClassOps() {
   };
 }
 
+export function useUndoAviso() {
+  const { d, upd, toast } = useApp();
+  return async (personaId: string, tipo: string, ref: string) => {
+    const rows = d.avisos.filter((a: any) => a.persona_id === personaId && a.tipo === tipo && a.ref === ref);
+    try { for (const a of rows) await upd('avisos', a.id, { deleted_at: new Date().toISOString() }); toast('Marca quitada'); } catch (e: any) { toast('Error: ' + e.message); }
+  };
+}
 export function useWhats() {
   const { cfg, me, ins } = useApp();
   return (p: any, tipo: string, vars: Record<string, string>, log?: { tipo: string; ref: string }) => {
@@ -43,11 +50,18 @@ export function useWhats() {
   };
 }
 // Botón discreto, redondo y claro para escribir por WhatsApp
-export function WaDot({ onClick, done, title = 'Escribir por WhatsApp' }: { onClick: () => void; done?: boolean; title?: string }) {
+export function WaDot({ onClick, done, onUndo, title = 'Escribir por WhatsApp' }: { onClick: () => void; done?: boolean; onUndo?: () => void; title?: string }) {
+  const [menu, setMenu] = useState(false);
   return (
-    <button type="button" className={'wadot' + (done ? ' done' : '')} title={title} aria-label={title} onClick={(e) => { e.stopPropagation(); onClick(); }}>
-      {done ? '✓' : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-12.4 7.4L3 20.5l1.7-5.4A8.5 8.5 0 1 1 21 11.5Z" /></svg>}
-    </button>
+    <>
+      <button type="button" className={'wadot' + (done ? ' done' : '')} title={done ? 'Ya le escribiste' : title} aria-label={done ? 'Ya le escribiste' : title} onClick={(e) => { e.stopPropagation(); if (done && onUndo) setMenu(true); else onClick(); }}>
+        {done ? '✓' : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-12.4 7.4L3 20.5l1.7-5.4A8.5 8.5 0 1 1 21 11.5Z" /></svg>}
+      </button>
+      {menu && <div onClick={(e) => e.stopPropagation()}><Sheet title="Ya le escribiste" onClose={() => setMenu(false)}>
+        <div className="stack"><div className="muted">Quedó marcado que ya le escribiste. Si fue sin querer, podés sacar la marca.</div>
+          <button className="btn big" onClick={() => { setMenu(false); onClick(); }}>Escribirle de nuevo</button>
+          <button className="btn ghost" onClick={() => { setMenu(false); onUndo && onUndo(); }}>Quitar la marca ✓</button></div></Sheet></div>}
+    </>
   );
 }
 
@@ -120,11 +134,12 @@ export function ClassSheet({ c, onClose, onOpenPersona }: { c: any; onClose: () 
   const idx = useMemo(() => buildIndex(d), [d]);
   const ops = useClassOps(); const wa = useWhats(); const { check, node } = useSlotCheck();
   const cur = idx.clasesById.get(c.id) || c; const p = idx.personaById.get(cur.persona_id);
-  const [mode, setMode] = useState<'' | 'ausente' | 'mover' | 'recuperar'>(''); const [otros, setOtros] = useState(false); const [inscribir, setInscribir] = useState(false);
+  const [mode, setMode] = useState<'' | 'ausente' | 'despues' | 'mover' | 'recuperar'>(''); const [otros, setOtros] = useState(false); const [inscribir, setInscribir] = useState(false);
   const [f, setF] = useState(cur.fecha); const [h, setH] = useState(hm(cur.hora)); const [exc, setExc] = useState(false);
   const profe = idx.profById.get(cur.profesora_id);
   const left = cur.estado === 'ausente' ? recupRestante(cur, hoy, cfg.recup_dias) : null;
   const done = async (pr: Promise<boolean>) => { if (await pr) onClose(); };
+  const faltoOp = async (motivo: string) => { if (await ops.ausente(cur, motivo)) { if (esPrueba) onClose(); else setMode('despues'); } };
   const orig = cur.recupera_de ? idx.clasesById.get(cur.recupera_de) : null;
   if (!p) return null;
   const fueraPlazo = mode === 'recuperar' && diffDays(f, cur.fecha) > cfg.recup_dias;
@@ -145,7 +160,8 @@ export function ClassSheet({ c, onClose, onOpenPersona }: { c: any; onClose: () 
           {cur.estado === 'agendada' && (<>
             <button className="btn big ok" onClick={() => done(ops.asistio(cur))}>✓ Asistió</button>
             {esPrueba && <button className="btn big" onClick={async () => { if (await ops.asistio(cur)) setInscribir(true); }}>Asistió y se inscribió →</button>}
-            <div className="row2"><button className="btn" onClick={() => setMode('ausente')}>No vino</button><button className="btn" onClick={() => setMode('mover')}>Reagendar</button></div>
+            <button className="btn" onClick={() => setMode('ausente')}>No vino</button>
+            <button className="btn ghost" onClick={() => setMode('mover')}>Cancelo yo la clase (hay que reprogramarla)</button>
           </>)}
           {cur.estado === 'asistio' && esPrueba && <button className="btn big" onClick={() => setInscribir(true)}>Se inscribió: elegir plan y horarios →</button>}
           {cur.estado === 'no_dada' && <button className="btn big" onClick={() => setMode('mover')}>Reagendar ahora</button>}
@@ -162,10 +178,17 @@ export function ClassSheet({ c, onClose, onOpenPersona }: { c: any; onClose: () 
       )}
       {mode === 'ausente' && (
         <div className="stack" style={{ marginTop: 14 }}><b>¿Avisó?</b>
-          <div className="row2"><button className="btn big" onClick={() => done(ops.ausente(cur, 'aviso'))}>Avisó</button><button className="btn big" onClick={() => done(ops.ausente(cur, 'no_aviso'))}>No avisó</button></div>
+          <div className="row2"><button className="btn big" onClick={() => faltoOp('aviso')}>Avisó</button><button className="btn big" onClick={() => faltoOp('no_aviso')}>No avisó</button></div>
           {!otros ? <button className="btn ghost sm" onClick={() => setOtros(true)}>Otro motivo…</button>
-            : <div className="chips wrap">{MOTIVOS.filter((m) => m[0] !== 'aviso' && m[0] !== 'no_aviso').map(([k, l]) => <button key={k} className="chip" onClick={() => done(ops.ausente(cur, k))}>{l}</button>)}</div>}
+            : <div className="chips wrap">{MOTIVOS.filter((m) => m[0] !== 'aviso' && m[0] !== 'no_aviso').map(([k, l]) => <button key={k} className="chip" onClick={() => faltoOp(k)}>{l}</button>)}</div>}
           <button className="btn ghost" onClick={() => setMode('')}>Volver</button></div>
+      )}
+      {mode === 'despues' && (
+        <div className="stack" style={{ marginTop: 14 }}><b>Quedó como ausente. ¿Cuándo lo/la recupera?</b>
+          <div className="muted small">Tiene {cfg.recup_dias} días para recuperar esa clase. Si todavía no sabe, queda en pendientes del inicio y le insistimos más adelante.</div>
+          <button className="btn big" onClick={() => { setF(hoy); setH(''); setMode('recuperar'); }}>↺ Elegir fecha de recuperación</button>
+          <button className="btn" onClick={() => { onClose(); }}>Definir después</button>
+          <button className="btn ghost" onClick={() => done(ops.noRecupera(cur))}>No recupera</button></div>
       )}
       {(mode === 'mover' || mode === 'recuperar') && (
         <div className="stack" style={{ marginTop: 14 }}><b>{mode === 'recuperar' ? 'Nueva fecha de recuperación' : 'Nueva fecha y hora'}</b>
