@@ -91,7 +91,11 @@ function Reactivar({ openPersona }: { openPersona: (id: string) => void }) {
         <button className="btn sm" onClick={() => escribir(x)}>Invitar</button>
         {isAdmin && <button className="x2" title="No contactar" onClick={() => upd('personas', x.p.id, { no_contactar: true }).then(() => toast('Marcada como no contactar'))}>⊘</button>}</div>))}</div>
     {esperando.length > 0 && <><h3>En espera ({esperando.length})</h3><div className="muted small pad">Ya se les escribió; vuelven solos a los {cfg.espera_contacto_dias} días. Podés devolverlos antes.</div><div className="list dim">{esperando.map((x: any) => <Fila key={x.p.id} x={x} sub={`le escribiste hace ${x.since} d · de nuevo en ${cfg.espera_contacto_dias - x.since} d`} btn={['Devolver a la lista', () => devolverEspera(x)]} />)}</div></>}
-    {sinCel.length > 0 && <><button className="btn ghost sm" style={{ marginTop: 14 }} onClick={() => setOpen({ ...open, sc: !open.sc })}>{open.sc ? '▾' : '▸'} Sin celular ({sinCel.length})</button>{open.sc && <div className="list dim">{sinCel.map((x: any) => <Fila key={x.p.id} x={x} sub="Sin celular: cargalo en su perfil para poder invitarlo/a" />)}</div>}</>}
-    {noCont.length > 0 && <><button className="btn ghost sm" style={{ marginTop: 14 }} onClick={() => setOpen({ ...open, nc: !open.nc })}>{open.nc ? '▾' : '▸'} No contactar ({noCont.length})</button>{open.nc && <div className="list dim">{noCont.map((x: any) => <Fila key={x.p.id} x={x} sub="Marcado/a como no contactar" btn={isAdmin ? ['Devolver a la lista', () => devolverNc(x)] : null} />)}</div>}</>}
+    {(sinCel.length > 0 || noCont.length > 0) && <div style={{ marginTop: 14 }}>
+      {sinCel.length > 0 && <button className="btn ghost sm" style={{ display: 'block', width: '100%', textAlign: 'left', marginBottom: 6 }} onClick={() => setOpen({ ...open, sc: !open.sc })}>{open.sc ? '▾' : '▸'} Sin celular ({sinCel.length})</button>}
+      {noCont.length > 0 && <button className="btn ghost sm" style={{ display: 'block', width: '100%', textAlign: 'left' }} onClick={() => setOpen({ ...open, nc: !open.nc })}>{open.nc ? '▾' : '▸'} No contactar ({noCont.length})</button>}
+      {open.sc && <><h3>Sin celular</h3><div className="list dim">{sinCel.map((x: any) => <Fila key={x.p.id} x={x} sub="Sin celular: cargalo en su perfil para poder invitarlo/a" />)}</div></>}
+      {open.nc && <><h3>No contactar</h3><div className="list dim">{noCont.map((x: any) => <Fila key={x.p.id} x={x} sub="Marcado/a como no contactar" btn={isAdmin ? ['Devolver a la lista', () => devolverNc(x)] : null} />)}</div></>}
+    </div>}
   </div>);
 }
