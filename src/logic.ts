@@ -66,7 +66,8 @@ export function personaStats(p: any, idx: Index, hoy: string, recupDias: number)
   const clases = (idx.clasesByP.get(p.id) || []).slice().sort((a, b) => (a.fecha + a.hora).localeCompare(b.fecha + b.hora));
   const subs = idx.subsByP.get(p.id) || [];
   const asist = clases.filter((c) => c.estado === 'asistio' && c.tipo !== 'prueba');
-  const ausentes = clases.filter((c) => c.estado === 'ausente' && c.tipo !== 'prueba');
+  const ausentes = clases.filter((c) => esFalta(c) && c.tipo !== 'prueba');
+  const canceladas = clases.filter((c) => c.estado === 'ausente' && sinCulpa(c) && c.tipo !== 'prueba');
   const recup = clases.filter((c) => c.tipo === 'recuperacion' && c.estado === 'asistio');
   const pagado = subs.reduce((a, s) => a + (Number(s.pago_monto) || 0), 0);
   const pagos = subs.filter((s) => s.pago_fecha);
@@ -75,14 +76,19 @@ export function personaStats(p: any, idx: Index, hoy: string, recupDias: number)
   const primera = cand[0] || clases[0]?.fecha || p.fecha_alta || null;
   const ant = primera ? diffDays(hoy, primera) : 0;
   const ultima = clases.filter((c) => c.estado === 'asistio').map((c) => c.fecha).sort().pop() || null;
-  return { clases, subs, asist: asist.length, ausentes: ausentes.length, recup: recup.length, pagado, nPagos: pagos.length, ticket: pagos.length ? pagado / pagos.length : 0, primera, antiguedadDias: ant, ultima, meses: subs.filter((s) => s.tipo !== 'unica').length };
+  return { clases, subs, asist: asist.length, ausentes: ausentes.length, canceladas: canceladas.length, recup: recup.length, pagado, nPagos: pagos.length, ticket: pagos.length ? pagado / pagos.length : 0, primera, antiguedadDias: ant, ultima, meses: subs.filter((s) => s.tipo !== 'unica').length };
 }
 
 // ausencia recuperable: días restantes
-export function recupRestante(c: any, hoy: string, recupDias: number) { return recupDias - diffDays(hoy, c.fecha); }
+export const SIN_CULPA = ['feriado', 'cancela_estudio'];
+export const sinCulpa = (c: any) => SIN_CULPA.includes(c.motivo_ausencia);
+export const esFalta = (c: any) => c.estado === 'ausente' && !sinCulpa(c);
+export const cambioHora = (c: any) => !!c.hora_original && !!c.fecha_original && c.fecha_original === c.fecha && hm(c.hora_original) !== hm(c.hora);
+// Si la clase se canceló por feriado o por el estudio, no vence el plazo
+export function recupRestante(c: any, hoy: string, recupDias: number) { return sinCulpa(c) ? 999 : recupDias - diffDays(hoy, c.fecha); }
 
 // Cuadros del período de una suscripción
-export type Square = { c: any; kind: 'ok' | 'rec' | 'rec_pend' | 'aus' | 'perdida' | 'pend' | 'sin_cerrar' | 'no_dada'; days?: number; recup?: any };
+export type Square = { c: any; kind: 'ok' | 'rec' | 'rec_pend' | 'aus' | 'perdida' | 'pend' | 'sin_cerrar' | 'no_dada' | 'cancel'; days?: number; recup?: any };
 export function squaresForSub(sub: any, idx: Index, hoy: string, recupDias: number, dur = 60): Square[] {
   const all = (idx.clasesByP.get(sub.persona_id) || []).filter((c) => c.fecha >= sub.inicio && c.fecha <= sub.fin && c.tipo !== 'prueba');
   const regs = all.filter((c) => c.tipo === 'regular' || c.tipo === 'unica');
@@ -94,7 +100,8 @@ export function squaresForSub(sub: any, idx: Index, hoy: string, recupDias: numb
     else if (c.estado === 'ausente') {
       const rc = (idx.clasesByP.get(sub.persona_id) || []).find((x) => x.recupera_de === c.id && !x.deleted_at);
       if (rc) { used.add(rc.id); out.push({ c, kind: rc.estado === 'asistio' ? 'rec' : 'rec_pend', recup: rc }); }
-      else if (c.ausencia_resolucion === 'no_recupera') out.push({ c, kind: 'perdida' });
+      else if (c.ausencia_resolucion === 'no_recupera') out.push({ c, kind: sinCulpa(c) ? 'cancel' : 'perdida' });
+      else if (sinCulpa(c)) out.push({ c, kind: 'cancel' });
       else { const left = recupRestante(c, hoy, recupDias); out.push(left >= 0 ? { c, kind: 'aus', days: left } : { c, kind: 'perdida' }); }
     } else out.push({ c, kind: claseTerminada(c, hoy, '23:59', dur) && c.fecha < hoy ? 'sin_cerrar' : 'pend' });
   });

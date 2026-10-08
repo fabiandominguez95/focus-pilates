@@ -72,7 +72,7 @@ function Reactivar({ openPersona }: { openPersona: (id: string) => void }) {
   const { d, cfg, hoy, isAdmin, upd, toast } = useApp(); const idx = useMemo(() => buildIndex(d), [d]); const wa = useWhats();
   const [tab, setTab] = useState<'no_se_inscribio' | 'no_renovo'>('no_se_inscribio');
   const lastContact = useMemo(() => { const m = new Map<string, string>(); d.avisos.forEach((a: any) => { if (!a.tipo.startsWith('invitacion')) return; const f = (a.creado_en || '').slice(0, 10); if (!m.has(a.persona_id) || f > m.get(a.persona_id)!) m.set(a.persona_id, f); }); return m; }, [d.avisos]);
-  const rows = useMemo(() => d.personas.map((p: any) => ({ p, e: estadoPersona(p, idx, cfg, hoy), s: personaStats(p, idx, hoy, cfg.recup_dias) })).filter((r: any) => r.e.stage === tab), [d, idx, cfg, hoy, tab]);
+  const rows = useMemo(() => d.personas.map((p: any) => ({ p, e: estadoPersona(p, idx, cfg, hoy), s: personaStats(p, idx, hoy, cfg.recup_dias) })).filter((r: any) => r.e.stage === tab && !r.p.baneado), [d, idx, cfg, hoy, tab]);
   const items = rows.map((r: any) => { const lc = lastContact.get(r.p.id); const since = lc ? diffDays(hoy, lc) : null; const ok = !r.p.no_contactar && !!r.p.celular && (since === null || since >= cfg.espera_contacto_dias); return { ...r, lc, since, ok }; });
   const listos = items.filter((x: any) => x.ok).sort((a: any, b: any) => (b.s.ultima || '').localeCompare(a.s.ultima || '')); const esperando = items.filter((x: any) => !x.ok);
   const escribir = (x: any) => wa(x.p, tab === 'no_se_inscribio' ? 'invitacion_prueba' : 'invitacion_inactiva', {}, { tipo: tab === 'no_se_inscribio' ? 'invitacion_prueba' : 'invitacion_inactiva', ref: hoy });

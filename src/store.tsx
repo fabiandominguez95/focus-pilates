@@ -64,7 +64,8 @@ export function Provider({ children }: { children: React.ReactNode }) {
   const dv = useMemo(() => {
     const o: any = { ...d };
     ['personas', 'suscripciones', 'clases', 'bloqueos', 'productos', 'ventas', 'egresos'].forEach((k) => { o[k + 'All'] = d[k] || []; o[k] = live(d[k] || []); });
-    ['horarios', 'planes', 'promos', 'metodos', 'profesoras', 'conceptos', 'avisos', 'users', 'cierres', 'saldos', 'config'].forEach((k) => (o[k] = d[k] || []));
+    o.avisos = live(d.avisos || []);
+    ['horarios', 'planes', 'promos', 'metodos', 'profesoras', 'conceptos', 'users', 'cierres', 'saldos', 'config'].forEach((k) => (o[k] = d[k] || []));
     return o;
   }, [d]);
 

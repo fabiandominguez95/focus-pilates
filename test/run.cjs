@@ -31,6 +31,7 @@ function filt(rows, q) { for (const [k, v] of q) { if (['select', 'order', 'limi
     }
     return route.fulfill({ status: 404, headers: H, body: '{}' });
   });
+  await page.route('https://date.nager.at/**', (r) => r.fulfill({ status: 404, body: '' }));
   const base = 'http://localhost:8099/';
   await page.goto(base); await page.waitForTimeout(400);
   await page.screenshot({ path: SCR + 's0_login.png' });
@@ -45,6 +46,14 @@ function filt(rows, q) { for (const [k, v] of q) { if (['select', 'order', 'limi
   await page.evaluate(() => (location.hash = 'hoy')); await page.waitForTimeout(300); await page.click('.opts-b'); await page.waitForTimeout(200); await page.screenshot({ path: SCR + `s_menu_${ROLE}.png` }); await page.keyboard.press('Escape'); await page.mouse.click(10, 400);
   await page.evaluate(() => (location.hash = 'mi/' + 'x'.repeat(24))); await page.waitForTimeout(500); await page.screenshot({ path: SCR + 's_portal.png', fullPage: true });
   await page.evaluate(() => (location.hash = 'mi')); await page.waitForTimeout(400); await page.fill('input[placeholder^="Tu nombre"]', 'Prueba'); await page.fill('input[inputmode=numeric]', '111111'); await page.click('button.btn.big'); await page.waitForTimeout(500); await page.screenshot({ path: SCR + 's_alumna_err.png' }); await page.fill('input[inputmode=numeric]', '901134'); await page.click('button.btn.big'); await page.waitForTimeout(600); await page.screenshot({ path: SCR + 's_alumna_ok.png', fullPage: true });
+  await page.evaluate(() => (location.hash = 'hoy')); await page.waitForTimeout(400);
+  const fr = page.locator('section').first().locator('.row-card.t-regular, .row-card.t-prueba, .row-card.t-recuperacion').first();
+  if (await fr.count()) { await fr.click(); await page.waitForTimeout(200); await page.screenshot({ path: SCR + 'f1_sheet.png' });
+    await page.click('text=No se dio'); await page.click('text=No avisó'); await page.fill('input[placeholder^="Argumento"]', 'Enferma'); await page.screenshot({ path: SCR + 'f2_motivo.png' });
+    await page.click('text=Seguir'); await page.waitForTimeout(300); await page.screenshot({ path: SCR + 'f3_recuperar.png' });
+    const ok = (await page.locator('text=A confirmar').count()) > 0 && (await page.locator('text=Reagendar').count()) === 0; console.log('FLOW', ok ? 'ok' : 'FALLA'); }
+  else console.log('FLOW sin clases hoy');
+  await page.evaluate(() => (location.hash = 'agenda')); await page.waitForTimeout(400); await page.screenshot({ path: SCR + 'f4_agenda.png', fullPage: true });
   fs.writeFileSync(SCR + 'log.txt', log.join('\n'));
   console.log(log.join('\n') || 'sin errores de consola');
   await b.close();

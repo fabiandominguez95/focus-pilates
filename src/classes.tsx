@@ -1,15 +1,28 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { useApp } from './store';
-import { buildIndex, slotKey, recupRestante, horasDisponibles } from './logic';
+import { buildIndex, slotKey, recupRestante, horasDisponibles, sinCulpa, cambioHora } from './logic';
 import { Sheet, Field, useConfirm } from './ui';
 import { PersonaPicker } from './picker';
 import { RenewSheet } from './subs';
-import { diffDays, fmtDate, fmtLong, hm, normPhone, primerNombre, timeToMin, waLink, fillTpl, DIAS3, dowISO } from './util';
+import { feriados, diffDays, fmtDate, fmtLong, hm, normPhone, primerNombre, timeToMin, waLink, fillTpl, DIAS3, dowISO } from './util';
 
 export { horasDisponibles };
-export const MOTIVOS: [string, string][] = [['aviso', 'Avisó'], ['aviso_tarde', 'Avisó tarde'], ['no_aviso', 'No avisó'], ['clima', 'Clima'], ['justificada', 'Justificada']];
+export const MOTIVOS: [string, string][] = [['aviso', 'Avisó'], ['aviso_tarde', 'Avisó tarde'], ['no_aviso', 'No avisó'], ['clima', 'Clima'], ['justificada', 'Justificada'], ['feriado', 'Feriado'], ['cancela_estudio', 'Cancelada por el estudio']];
+export const MOTIVOS_NUEVOS: [string, string][] = [['aviso', 'Avisó'], ['no_aviso', 'No avisó'], ['feriado', 'Feriado'], ['cancela_estudio', 'Cancelamos nosotros']];
 export const motivoLabel = (m?: string) => (MOTIVOS.find((x) => x[0] === m) || [0, m || ''])[1];
 export const TIPO_LABEL: Record<string, string> = { regular: 'Clase', prueba: 'Prueba', recuperacion: 'Recuperación', unica: 'Clase única' };
+
+const FER_CACHE: Record<string, Promise<string[]>> = {};
+export function useFeriadoSet() {
+  const { cfg, hoy } = useApp(); const [set, setSet] = useState<Set<string>>(new Set());
+  React.useEffect(() => {
+    let off = false; const y = Number(hoy.slice(0, 4));
+    Promise.all([y, y + 1].map((yy) => (FER_CACHE[yy + cfg.pais] ||= feriados(String(yy), cfg.pais).then((r) => r.list.map(([f]) => f)).catch(() => []))))
+      .then((a) => { if (!off) setSet(new Set(a.flat())); });
+    return () => { off = true; };
+  }, [cfg.pais, hoy]);
+  return set;
+}
 
 export function useClassOps() {
   const { d, me, upd, ins, toast } = useApp();
@@ -18,9 +31,9 @@ export function useClassOps() {
   return {
     profeDefault,
     asistio: (c: any) => run(() => upd('clases', c.id, { estado: 'asistio', a_confirmar: false, profesora_id: c.profesora_id || profeDefault, motivo_ausencia: null }), 'Clase dada ✓'),
-    deshacer: (c: any) => run(() => upd('clases', c.id, { estado: 'agendada', a_confirmar: false, motivo_ausencia: null, ausencia_resolucion: null }), 'Vuelta a agendada'),
-    ausente: (c: any, motivo: string) => run(() => upd('clases', c.id, { estado: 'ausente', motivo_ausencia: motivo, a_confirmar: false }), 'Ausencia registrada'),
-    recordarMasTarde: (c: any) => run(() => upd('clases', c.id, { estado: 'no_dada', a_confirmar: true }), 'Quedó pendiente de reagendar'),
+    deshacer: (c: any) => run(() => upd('clases', c.id, { estado: 'agendada', a_confirmar: false, motivo_ausencia: null, nota_ausencia: null, ausencia_resolucion: null }), 'Vuelta a agendada'),
+    ausente: (c: any, motivo: string, nota?: string) => run(() => upd('clases', c.id, { estado: 'ausente', motivo_ausencia: motivo, nota_ausencia: nota?.trim() || null, a_confirmar: false }), 'Clase no dada registrada'),
+    cambiarHora: (c: any, hora: string) => run(() => upd('clases', c.id, { hora, fecha_original: c.fecha_original || c.fecha, hora_original: c.hora_original || c.hora }), 'Hora cambiada solo por hoy'),
     reagendar: (c: any, fecha: string, hora: string) => run(() => upd('clases', c.id, { fecha, hora, estado: 'agendada', a_confirmar: false, fecha_original: c.fecha_original || c.fecha, hora_original: c.hora_original || c.hora }), 'Clase reagendada'),
     noRecupera: (c: any) => run(() => upd('clases', c.id, { ausencia_resolucion: 'no_recupera' }), 'Marcada como "no recupera"'),
     recuperar: async (c: any, fecha: string, hora: string, excepcion: boolean) => run(async () => {
@@ -92,7 +105,7 @@ export function QuienesSheet({ fecha, hora, onClose }: { fecha: string; hora: st
 }
 
 // Selector de fecha + hora (en punto) con ocupación. Mantener presionado en una hora = ver quiénes están.
-export function SlotPicker({ fecha, hora, onChange, ignoreId }: { fecha: string; hora: string; onChange: (f: string, h: string) => void; ignoreId?: string }) {
+export function SlotPicker({ fecha, hora, onChange, ignoreId, lockFecha }: { fecha: string; hora: string; onChange: (f: string, h: string) => void; ignoreId?: string; lockFecha?: boolean }) {
   const { d, cfg } = useApp(); const [who, setWho] = useState<string | null>(null);
   const occ = useMemo(() => {
     const m = new Map<string, number>();
@@ -103,7 +116,7 @@ export function SlotPicker({ fecha, hora, onChange, ignoreId }: { fecha: string;
   const horas = horasDisponibles(cfg);
   return (
     <div>
-      <div className="row"><input type="date" value={fecha} onChange={(e) => onChange(e.target.value, hora)} style={{ flex: 1 }} /><span className="muted small">{fecha && fmtLong(fecha)}</span></div>
+      {lockFecha ? <div className="muted small">{fmtLong(fecha)}</div> : <div className="row"><input type="date" value={fecha} onChange={(e) => onChange(e.target.value, hora)} style={{ flex: 1 }} /><span className="muted small">{fecha && fmtLong(fecha)}</span></div>}
       <div className="slots">
         {horas.map((h) => <SlotBtn key={h} h={h} on={h === hora} n={occ.get(slotKey(fecha, h)) || 0} cupo={cfg.cupo} blocked={bloq.some((b: any) => b.hora_desde && b.hora_hasta && timeToMin(hm(b.hora_desde)) < timeToMin(h) + 60 && timeToMin(hm(b.hora_hasta)) > timeToMin(h))} onPick={() => onChange(fecha, h)} onWho={() => setWho(h)} />)}
       </div>
@@ -132,41 +145,47 @@ export function useSlotCheck() {
 export function ClassSheet({ c, onClose, onOpenPersona }: { c: any; onClose: () => void; onOpenPersona?: (id: string) => void }) {
   const { d, cfg, hoy, isAdmin } = useApp();
   const idx = useMemo(() => buildIndex(d), [d]);
-  const ops = useClassOps(); const wa = useWhats(); const { check, node } = useSlotCheck();
+  const ops = useClassOps(); const wa = useWhats(); const { check, node } = useSlotCheck(); const fer = useFeriadoSet();
   const cur = idx.clasesById.get(c.id) || c; const p = idx.personaById.get(cur.persona_id);
-  const [mode, setMode] = useState<'' | 'ausente' | 'despues' | 'mover' | 'recuperar'>(''); const [otros, setOtros] = useState(false); const [inscribir, setInscribir] = useState(false);
+  const [mode, setMode] = useState<'' | 'ausente' | 'mover' | 'recuperar' | 'hora'>(''); const [inscribir, setInscribir] = useState(false);
+  const [mot, setMot] = useState(fer.has(cur.fecha) ? 'feriado' : ''); const [nota, setNota] = useState('');
   const [f, setF] = useState(cur.fecha); const [h, setH] = useState(hm(cur.hora)); const [exc, setExc] = useState(false);
+  React.useEffect(() => { if (!mot && fer.has(cur.fecha)) setMot('feriado'); }, [fer]);
   const profe = idx.profById.get(cur.profesora_id);
+  const sc = sinCulpa(cur);
   const left = cur.estado === 'ausente' ? recupRestante(cur, hoy, cfg.recup_dias) : null;
   const done = async (pr: Promise<boolean>) => { if (await pr) onClose(); };
-  const faltoOp = async (motivo: string) => { if (await ops.ausente(cur, motivo)) { if (esPrueba) onClose(); else setMode('despues'); } };
+  const esPrueba = cur.tipo === 'prueba';
   const orig = cur.recupera_de ? idx.clasesById.get(cur.recupera_de) : null;
   if (!p) return null;
-  const fueraPlazo = mode === 'recuperar' && diffDays(f, cur.fecha) > cfg.recup_dias;
-  const esPrueba = cur.tipo === 'prueba';
+  const fueraPlazo = mode === 'recuperar' && !sc && diffDays(f, cur.fecha) > cfg.recup_dias;
+  const seguir = async () => { if (!mot) return; if (await ops.ausente(cur, mot, nota)) { if (esPrueba) onClose(); else { setF(hoy); setH(''); setMode('recuperar'); } } };
+  const estadoTxt = cur.estado === 'ausente' ? (sc ? 'No se dio' : 'Ausente') : ({ agendada: 'Agendada', asistio: 'Asistió ✓', no_dada: 'No dada' } as any)[cur.estado];
   return (
     <Sheet title={p.nombre} onClose={onClose}>
       {node}
       <div className="kv"><span>{TIPO_LABEL[cur.tipo]}{cur.excepcion ? ' · con excepción' : ''}</span><b>{fmtLong(cur.fecha)} · {hm(cur.hora)}</b></div>
-      <div className="kv"><span>Estado</span><b>{({ agendada: 'Agendada', asistio: 'Asistió ✓', ausente: 'Ausente', no_dada: 'Pendiente de reagendar' } as any)[cur.estado]}{cur.motivo_ausencia ? ` · ${motivoLabel(cur.motivo_ausencia)}` : ''}</b></div>
+      <div className="kv"><span>Estado</span><b>{estadoTxt}{cur.motivo_ausencia ? ` · ${motivoLabel(cur.motivo_ausencia)}` : ''}</b></div>
+      {cur.nota_ausencia && <div className="kv"><span>Argumento</span><b style={{ fontWeight: 500 }}>{cur.nota_ausencia}</b></div>}
+      {sc && cur.estado === 'ausente' && <div className="muted small" style={{ margin: '4px 0' }}>Esta clase se canceló ({cur.motivo_ausencia === 'feriado' ? 'feriado' : 'por el estudio'}). No es una falta ni corta su asistencia: se recupera sin plazo.</div>}
       {profe && <div className="kv"><span>Instructor/a</span><b>{profe.nombre}</b></div>}
+      {cambioHora(cur) && <div className="kv"><span>Cambio de hora (solo ese día)</span><b>{hm(cur.hora_original)} → {hm(cur.hora)}</b></div>}
       {cur.fecha_original && cur.fecha_original !== cur.fecha && <div className="kv"><span>{cur.tipo === 'recuperacion' ? 'Faltó el' : 'Original'}</span><b>{fmtDate(cur.fecha_original)} {hm(cur.hora_original)}</b></div>}
-      {orig && <div className="kv"><span>Ausencia vinculada</span><b>{fmtDate(orig.fecha)} · {motivoLabel(orig.motivo_ausencia)}</b></div>}
+      {orig && <div className="kv"><span>Clase que recupera</span><b>{fmtDate(orig.fecha)} · {motivoLabel(orig.motivo_ausencia)}</b></div>}
       {cur.estado === 'ausente' && cur.ausencia_resolucion === 'recuperada' && <div className="kv"><span>Recuperada</span><b>sí ↺</b></div>}
-      {cur.estado === 'ausente' && !cur.ausencia_resolucion && <div className="kv"><span>Plazo para recuperar</span><b>{left! >= 0 ? `${left} días` : 'vencido (solo con excepción)'}</b></div>}
+      {cur.estado === 'ausente' && !cur.ausencia_resolucion && !sc && <div className="kv"><span>Plazo para recuperar</span><b>{left! >= 0 ? `${left} días` : 'vencido (solo con excepción)'}</b></div>}
 
       {mode === '' && (
         <div className="stack" style={{ marginTop: 14 }}>
           {cur.estado === 'agendada' && (<>
-            <button className="btn big ok" onClick={() => done(ops.asistio(cur))}>✓ Asistió</button>
-            {esPrueba && <button className="btn big" onClick={async () => { if (await ops.asistio(cur)) setInscribir(true); }}>Asistió y se inscribió →</button>}
-            <button className="btn" onClick={() => setMode('ausente')}>No vino</button>
-            <button className="btn ghost" onClick={() => setMode('mover')}>Cancelo yo la clase (hay que reprogramarla)</button>
+            <div className="row2"><button className="btn big ok" onClick={() => done(ops.asistio(cur))}>✓ Se dio</button>
+              <button className="btn big" onClick={() => setMode('ausente')}>No se dio</button></div>
+            {esPrueba && <button className="btn big" onClick={async () => { if (await ops.asistio(cur)) setInscribir(true); }}>Se dio y se inscribió →</button>}
+            <button className="btn ghost" onClick={() => { setF(cur.fecha); setH(hm(cur.hora)); setMode('hora'); }}>Cambiar la hora solo por hoy</button>
           </>)}
           {cur.estado === 'asistio' && esPrueba && <button className="btn big" onClick={() => setInscribir(true)}>Se inscribió: elegir plan y horarios →</button>}
-          {cur.estado === 'no_dada' && <button className="btn big" onClick={() => setMode('mover')}>Reagendar ahora</button>}
           {cur.estado === 'ausente' && !cur.ausencia_resolucion && (<div className="row2">
-            <button className="btn big" onClick={() => { setF(hoy); setH(''); setMode('recuperar'); }}>↺ Recuperar</button>
+            <button className="btn big" onClick={() => { setF(hoy); setH(''); setMode('recuperar'); }}>↺ Elegir fecha</button>
             <button className="btn ghost" onClick={() => done(ops.noRecupera(cur))}>No recupera</button></div>)}
           {(cur.estado === 'asistio' || cur.estado === 'ausente' || cur.estado === 'no_dada') && <button className="btn ghost" onClick={() => done(ops.deshacer(cur))}>Deshacer (volver a agendada)</button>}
           <div className="row2">
@@ -177,26 +196,28 @@ export function ClassSheet({ c, onClose, onOpenPersona }: { c: any; onClose: () 
         </div>
       )}
       {mode === 'ausente' && (
-        <div className="stack" style={{ marginTop: 14 }}><b>¿Avisó?</b>
-          <div className="row2"><button className="btn big" onClick={() => faltoOp('aviso')}>Avisó</button><button className="btn big" onClick={() => faltoOp('no_aviso')}>No avisó</button></div>
-          {!otros ? <button className="btn ghost sm" onClick={() => setOtros(true)}>Otro motivo…</button>
-            : <div className="chips wrap">{MOTIVOS.filter((m) => m[0] !== 'aviso' && m[0] !== 'no_aviso').map(([k, l]) => <button key={k} className="chip" onClick={() => faltoOp(k)}>{l}</button>)}</div>}
+        <div className="stack" style={{ marginTop: 14 }}><b>¿Por qué no se dio?</b>
+          <div className="row2">{MOTIVOS_NUEVOS.slice(0, 2).map(([k, l]) => <button key={k} className={'btn big' + (mot === k ? ' ok' : ' ghost')} onClick={() => setMot(k)}>{l}</button>)}</div>
+          <div className="row2">{MOTIVOS_NUEVOS.slice(2).map(([k, l]) => <button key={k} className={'btn' + (mot === k ? ' ok' : ' ghost')} onClick={() => setMot(k)}>{l}</button>)}</div>
+          {(mot === 'aviso' || mot === 'no_aviso') && <input placeholder="Argumento (opcional)" maxLength={140} value={nota} onChange={(e) => setNota(e.target.value)} />}
+          {(mot === 'feriado' || mot === 'cancela_estudio') && <div className="muted small">No cuenta como falta de la persona; se recupera sin plazo.</div>}
+          <button className="btn big" disabled={!mot} onClick={seguir}>{esPrueba ? 'Guardar' : 'Seguir: elegir fecha de recuperación →'}</button>
           <button className="btn ghost" onClick={() => setMode('')}>Volver</button></div>
       )}
-      {mode === 'despues' && (
-        <div className="stack" style={{ marginTop: 14 }}><b>Quedó como ausente. ¿Cuándo lo/la recupera?</b>
-          <div className="muted small">Tiene {cfg.recup_dias} días para recuperar esa clase. Si todavía no sabe, queda en pendientes del inicio y le insistimos más adelante.</div>
-          <button className="btn big" onClick={() => { setF(hoy); setH(''); setMode('recuperar'); }}>↺ Elegir fecha de recuperación</button>
-          <button className="btn" onClick={() => { onClose(); }}>Definir después</button>
-          <button className="btn ghost" onClick={() => done(ops.noRecupera(cur))}>No recupera</button></div>
+      {mode === 'hora' && (
+        <div className="stack" style={{ marginTop: 14 }}><b>Cambiar hora solo ese día</b>
+          <SlotPicker fecha={cur.fecha} hora={h} lockFecha onChange={(_a, b) => setH(b)} ignoreId={cur.id} />
+          <button className="btn big" disabled={!h || h === hm(cur.hora)} onClick={async () => { if (!(await check(cur.fecha, h, cur.id))) return; done(ops.cambiarHora(cur, h)); }}>Guardar</button>
+          <button className="btn ghost" onClick={() => setMode('')}>Volver</button></div>
       )}
       {(mode === 'mover' || mode === 'recuperar') && (
-        <div className="stack" style={{ marginTop: 14 }}><b>{mode === 'recuperar' ? 'Nueva fecha de recuperación' : 'Nueva fecha y hora'}</b>
+        <div className="stack" style={{ marginTop: 14 }}><b>{cur.estado === 'ausente' ? 'Fecha de la clase de recuperación' : 'Nueva fecha y hora'}</b>
           <SlotPicker fecha={f} hora={h} onChange={(a, b) => { setF(a); setH(b); }} ignoreId={cur.id} />
           {fueraPlazo && <label className="check warn"><input type="checkbox" checked={exc} onChange={(e) => setExc(e.target.checked)} /> Fuera del plazo de {cfg.recup_dias} días: recuperar con excepción</label>}
-          <button className="btn big" disabled={!h || (fueraPlazo && !exc)} onClick={async () => { if (!(await check(f, h, cur.id))) return; done(mode === 'recuperar' ? ops.recuperar(cur, f, h, fueraPlazo && exc) : ops.reagendar(cur, f, h)); }}>Guardar</button>
-          {mode === 'mover' && cur.estado !== 'no_dada' && <button className="btn ghost" onClick={() => done(ops.recordarMasTarde(cur))}>Todavía no sabe cuándo: recordar más tarde</button>}
-          <button className="btn ghost" onClick={() => setMode('')}>Volver</button>
+          <button className="btn big" disabled={!h || (fueraPlazo && !exc)} onClick={async () => { if (!(await check(f, h, cur.id))) return; done(mode === 'recuperar' ? ops.recuperar(cur, f, h, fueraPlazo && exc) : ops.reagendar(cur, f, h)); }}>Guardar recuperación</button>
+          {mode === 'recuperar' && <button className="btn" onClick={onClose}>A confirmar: todavía sin fecha</button>}
+          {mode === 'recuperar' && <button className="btn ghost" onClick={() => done(ops.noRecupera(cur))}>No recupera</button>}
+          {mode === 'recuperar' && <div className="muted small">«A confirmar» la deja en el inicio como pendiente hasta que se defina una fecha.</div>}
         </div>
       )}
       {inscribir && <RenewSheet persona={p} onClose={() => { setInscribir(false); onClose(); }} />}
@@ -212,7 +233,7 @@ export function NewClassSheet({ onClose, presetFecha, presetHora, presetPersona 
   const p = pid ? idx.personaById.get(pid) : null;
   const faltas = useMemo(() => (p ? (idx.clasesByP.get(p.id) || []).filter((c: any) => c.estado === 'ausente' && !c.ausencia_resolucion && c.tipo !== 'prueba').sort((a: any, b: any) => b.fecha.localeCompare(a.fecha)) : []), [p, idx]);
   const falta = faltas.find((x: any) => x.id === aus);
-  const fueraPlazo = tipo === 'recuperacion' && falta && diffDays(f, falta.fecha) > cfg.recup_dias;
+  const fueraPlazo = tipo === 'recuperacion' && falta && !sinCulpa(falta) && diffDays(f, falta.fecha) > cfg.recup_dias;
   const listo = !!p && !!h && (tipo !== 'recuperacion' || sinFalta || (falta && (!fueraPlazo || exc)));
   const save = async () => {
     if (!p || !h) return;
@@ -234,7 +255,7 @@ export function NewClassSheet({ onClose, presetFecha, presetHora, presetPersona 
         {tipo === 'recuperacion' && p && (
           <Field label="¿Qué falta recupera?">
             {faltas.length === 0 ? <div className="muted small">No tiene faltas pendientes de recuperar.</div>
-              : <div className="stack" style={{ gap: 6 }}>{faltas.map((x: any) => { const l = recupRestante(x, hoy, cfg.recup_dias); return <button type="button" key={x.id} className={'opt' + (aus === x.id ? ' on' : '')} onClick={() => { setAus(x.id); setSinFalta(false); }}><b>{fmtDate(x.fecha)} · {hm(x.hora)}</b><span className="muted small">{motivoLabel(x.motivo_ausencia)} · {l >= 0 ? `quedan ${l} días` : 'plazo vencido (excepción)'}</span></button>; })}</div>}
+              : <div className="stack" style={{ gap: 6 }}>{faltas.map((x: any) => { const l = recupRestante(x, hoy, cfg.recup_dias); return <button type="button" key={x.id} className={'opt' + (aus === x.id ? ' on' : '')} onClick={() => { setAus(x.id); setSinFalta(false); }}><b>{fmtDate(x.fecha)} · {hm(x.hora)}</b><span className="muted small">{motivoLabel(x.motivo_ausencia)} · {sinCulpa(x) ? 'sin vencimiento' : l >= 0 ? `quedan ${l} días` : 'plazo vencido (excepción)'}</span></button>; })}</div>}
             <label className="check" style={{ marginTop: 8 }}><input type="checkbox" checked={sinFalta} onChange={(e) => { setSinFalta(e.target.checked); if (e.target.checked) setAus(''); }} /> Recuperación sin falta registrada</label>
           </Field>)}
         <SlotPicker fecha={f} hora={h} onChange={(a, b) => { setF(a); setH(b); }} />

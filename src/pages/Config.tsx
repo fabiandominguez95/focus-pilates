@@ -10,7 +10,7 @@ import { allMonths } from '../fin';
 const SECS: [string, string, string][] = [
   ['general', 'General', 'Horario, cupo, plazos, umbrales de atraso'], ['planes', 'Planes', 'Precios y planes'], ['promos', 'Promos y grupos', 'Descuentos'], ['pagos', 'Métodos de pago', ''],
   ['profes', 'Instructores/as', 'Fijas y suplentes, salario base'], ['plantillas', 'Mensajes de WhatsApp', 'Plantillas editables'], ['usuarios', 'Usuarios', 'Nicks, roles, contraseñas'],
-  ['backup', 'Backup en Excel', 'Descargar por mes o completo'], ['historial', 'Historial de cambios', 'Quién cambió qué'], ['accesos', 'Accesos de alumnos/as', 'Quién vio su perfil y cuándo'], ['papelera', 'Papelera', 'Restaurar eliminados'],
+  ['backup', 'Backup en Excel', 'Descargar por mes o completo'], ['historial', 'Historial de cambios', 'Quién cambió qué'], ['baneados', 'Clientes baneados', 'Excluidos para siempre; se pueden desbanear'], ['accesos', 'Accesos de alumnos/as', 'Quién vio su perfil y cuándo'], ['papelera', 'Papelera', 'Restaurar eliminados'],
 ];
 const DIRTY = { v: false };
 function useDirty(flag: boolean) { React.useEffect(() => { DIRTY.v = flag; return () => { DIRTY.v = false; }; }, [flag]); }
@@ -23,10 +23,18 @@ export default function Config({ sec = '' }: { sec?: string }) {
   const volver = async () => { if (DIRTY.v && !(await ask('Tenés cambios sin guardar. ¿Salir y descartarlos?'))) return; DIRTY.v = false; location.hash = 'config'; };
   if (sec && SECS.some((x) => x[0] === sec)) return <div className="page">{node}<header className="page-head"><button className="btn sm ghost" onClick={volver}>‹ Configuración</button><h1>{SECS.find((s) => s[0] === sec)?.[1]}</h1></header>
     {sec === 'general' && <General />}{sec === 'planes' && <Planes />}{sec === 'promos' && <Promos />}{sec === 'pagos' && <Metodos />}{sec === 'profes' && <Profes />}{sec === 'plantillas' && <Plantillas />}
-    {sec === 'usuarios' && <Usuarios />}{sec === 'backup' && <Backup />}{sec === 'historial' && <Historial />}{sec === 'accesos' && <Accesos />}{sec === 'papelera' && <Papelera />}</div>;
+    {sec === 'usuarios' && <Usuarios />}{sec === 'backup' && <Backup />}{sec === 'historial' && <Historial />}{sec === 'accesos' && <Accesos />}{sec === 'baneados' && <Baneados />}{sec === 'papelera' && <Papelera />}</div>;
   return (<div className="page"><header className="page-head"><h1>Configuración</h1></header><div className="list">{SECS.map(([k, t, s]) => <div className="row-card plain" key={k} onClick={() => { location.hash = 'config/' + k; }}><div className="grow"><b>{t}</b><div className="small muted">{s}</div></div><span className="chev">›</span></div>)}</div></div>);
 }
 
+function Baneados() {
+  const { d, upd, toast } = useApp(); const { ask, node } = useConfirm();
+  const lista = d.personas.filter((p: any) => p.baneado);
+  return (<div>{node}<div className="muted small pad">Las personas baneadas no aparecen en «Reactivar clientes» y se ven en negro. Podés desbanearlas cuando quieras.</div>
+    {lista.length === 0 && <div className="muted pad">Nadie baneado/a.</div>}
+    <div className="list">{lista.map((p: any) => <div className="row-card plain ban" key={p.id}><div className="grow"><b>{p.nombre}</b>{p.baneo_nota && <div className="small muted">{p.baneo_nota}</div>}</div>
+      <button className="btn sm" onClick={async () => { if (await ask(`¿Desbanear a ${p.nombre}?`)) { try { await upd('personas', p.id, { baneado: false, baneo_nota: null }); toast('Desbaneado/a'); } catch (e: any) { toast('Error: ' + e.message); } } }}>Desbanear</button></div>)}</div></div>);
+}
 function useSave() { const { toast } = useApp(); return async (fn: () => Promise<any>, ok = 'Guardado') => { try { await fn(); toast(ok); } catch (e: any) { toast('Error: ' + e.message); } }; }
 
 function General() {
@@ -45,7 +53,7 @@ function General() {
   }); init.current = JSON.stringify(v); setV({ ...v }); };
   return (<div className="stack">{node}
     <div className="row2"><Field label="Apertura"><input type="time" value={v.apertura} onChange={(e) => set('apertura', e.target.value)} /></Field><Field label="Cierre"><input type="time" value={v.cierre} onChange={(e) => set('cierre', e.target.value)} /></Field></div>
-    <div className="row2"><Field label="Cupo por clase">{n('cupo')}</Field><Field label="Duración (min)">{n('duracion_min')}</Field></div>
+    <div className="row2"><Field label="Camas (cupo por clase)">{n('cupo')}</Field><Field label="Duración (min)">{n('duracion_min')}</Field></div>
     <Field label="Plazo para recuperar una falta (días)">{n('recup_dias')}</Field>
     <h3>Umbrales de atraso (días tras el vencimiento)</h3>
     <div className="row2"><Field label="🟡 Amarillo">{n('amarillo')}</Field><Field label="🟠 Naranja">{n('naranja')}</Field></div><div className="row2"><Field label="🟠 Naranja fuerte">{n('naranja2')}</Field><Field label="🔴 Rojo">{n('rojo')}</Field></div>

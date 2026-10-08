@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../store';
-import { buildIndex, estadoPersona, personaStats } from '../logic';
+import { buildIndex, estadoPersona, personaStats, esFalta } from '../logic';
 import { allMonths, resumenMes } from '../fin';
 import { BarChart, LineChart, Legend, Seg } from '../ui';
 import { addMonthKey, diffDays, fmtDate, fmtDateY, gs, hm, monthLabel, monthOf, monthShort, MESES3, num, DIAS } from '../util';
@@ -8,7 +8,7 @@ import { ClassPill } from './Agenda';
 
 function monthStats(d: any, m: string) {
   const r = resumenMes(d, m); const cl = d.clases.filter((c: any) => c.fecha.startsWith(m));
-  const dadas = cl.filter((c: any) => c.estado === 'asistio').length; const aus = cl.filter((c: any) => c.estado === 'ausente').length;
+  const dadas = cl.filter((c: any) => c.estado === 'asistio').length; const aus = cl.filter((c: any) => esFalta(c)).length;
   const primerSub = new Map<string, string>(); d.suscripciones.forEach((s: any) => { if (s.tipo === 'unica' || s.cancelada) return; const k = primerSub.get(s.persona_id); if (!k || s.inicio < k) primerSub.set(s.persona_id, s.inicio); });
   const altas = [...primerSub.values()].filter((f) => f.startsWith(m)).length;
   const activos = new Set(d.suscripciones.filter((s: any) => s.tipo !== 'unica' && !s.cancelada && s.inicio.slice(0, 7) <= m && s.fin.slice(0, 7) >= m).map((s: any) => s.persona_id)).size;
@@ -74,6 +74,7 @@ export function Facts({ openPersona, embedded }: { openPersona: (id: string) => 
         {isAdmin && <div className="kpi"><span>Facturado en total</span><b>{gs(f.totalIng)}</b></div>}
       </div>
       <Card t="Quién dio las clases">{[...f.porProfe.entries()].map(([id, n]) => <div className="kv" key={id}><span>{d.profesoras.find((p: any) => p.id === id)?.nombre || 'Sin asignar (histórico)'}</span><b>{num(n)} clases</b></div>)}</Card>
+      <Card t="Clases que no se dieron (sin culpa de las personas)"><div className="kv"><span>Por feriado</span><b>{d.clases.filter((c: any) => c.motivo_ausencia === 'feriado' && c.estado === 'ausente').length}</b></div><div className="kv"><span>Canceladas por el estudio</span><b>{d.clases.filter((c: any) => c.motivo_ausencia === 'cancela_estudio' && c.estado === 'ausente').length}</b></div></Card>
       <Card t="Más asistencias"><Top list={f.top((r: any) => r.s.asist)} fmt={(r: any) => r.s.asist} /></Card>
       <Card t="Más ausencias"><Top list={f.top((r: any) => r.s.ausentes)} fmt={(r: any) => r.s.ausentes} /></Card>
       <Card t="Más recuperaciones"><Top list={f.top((r: any) => r.s.recup)} fmt={(r: any) => r.s.recup} /></Card>

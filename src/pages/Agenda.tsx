@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../store';
-import { buildIndex, slotKey } from '../logic';
+import { buildIndex, slotKey, sinCulpa, cambioHora } from '../logic';
 import { Seg } from '../ui';
-import { ClassSheet, NewClassSheet, TIPO_LABEL, horasDisponibles, motivoLabel, QuienesSheet, useLongPress } from '../classes';
+import { ClassSheet, NewClassSheet, TIPO_LABEL, horasDisponibles, motivoLabel, QuienesSheet, useLongPress, useClassOps, useSlotCheck } from '../classes';
 import { addDays, DIAS3, dowISO, fmtDate, fmtLong, hm, monthLabel, parseD, ymd, addMonthKey, normStr } from '../util';
 
 export default function Agenda({ openPersona }: { openPersona: (id: string) => void }) {
@@ -10,6 +10,7 @@ export default function Agenda({ openPersona }: { openPersona: (id: string) => v
   const idx = useMemo(() => buildIndex(d), [d]);
   const [fecha, setFecha] = useState(hoy); const [vista, setVista] = useState<'dia' | 'semana' | 'lista'>('dia');
   const [quick, setQuick] = useState('todo'); const [tipo, setTipo] = useState(''); const [estado, setEstado] = useState(''); const [profe, setProfe] = useState(''); const [q, setQ] = useState('');
+  const ops = useClassOps(); const { check, node: slotNode } = useSlotCheck(); const [full, setFull] = useState(false); const [dragId, setDragId] = useState<string | null>(null); const [over, setOver] = useState<string | null>(null);
   const [who, setWho] = useState<string | null>(null); const [more, setMore] = useState(false); const [sel, setSel] = useState<any>(null); const [nuevo, setNuevo] = useState<any>(null);
 
   const filtrar = (c: any) => {
@@ -22,7 +23,18 @@ export default function Agenda({ openPersona }: { openPersona: (id: string) => v
     if (q && !normStr(idx.personaById.get(c.persona_id)?.nombre || '').includes(normStr(q))) return false;
     return true;
   };
-  const horas = horasDisponibles(cfg);
+  const horasTodas = horasDisponibles(cfg);
+  const horas = useMemo(() => {
+    if (vista !== 'dia' || full) return horasTodas;
+    const hs = d.clases.filter((c: any) => c.fecha === fecha && c.estado !== 'no_dada').map((c: any) => hm(c.hora)).filter((h: string) => horasTodas.includes(h)).sort();
+    if (!hs.length) return horasTodas;
+    return horasTodas.filter((h) => h >= hs[0] && h <= hs[hs.length - 1]);
+  }, [d.clases, fecha, vista, full, horasTodas.join()]);
+  const soltar = async (h: string) => {
+    const c = d.clases.find((x: any) => x.id === dragId); setDragId(null); setOver(null);
+    if (!c || c.estado !== 'agendada' || hm(c.hora) === h) return;
+    if (await check(c.fecha, h, c.id)) ops.cambiarHora(c, h);
+  };
   const dayClases = (f: string) => d.clases.filter((c: any) => c.fecha === f && filtrar(c));
   const mover = (n: number) => setFecha(addDays(fecha, vista === 'semana' ? n * 7 : vista === 'lista' ? 0 : n));
   const inicioSemana = addDays(fecha, 1 - dowISO(fecha));
@@ -50,20 +62,27 @@ export default function Agenda({ openPersona }: { openPersona: (id: string) => v
 
       {vista === 'dia' && (
         <div className="day">
+          <label className="check small" style={{ margin: '0 0 6px' }}><input type="checkbox" checked={full} onChange={(e) => setFull(e.target.checked)} /> Ver el día completo ({horasTodas[0]} a {horasTodas[horasTodas.length - 1]})</label>
           {horas.map((h) => {
             const cs = dayClases(fecha).filter((c: any) => hm(c.hora) === h); const all = d.clases.filter((c: any) => c.fecha === fecha && hm(c.hora) === h && (c.estado === 'agendada' || c.estado === 'asistio')).length;
+            const camas = cs.filter((c: any) => c.estado === 'agendada' || c.estado === 'asistio'); const otras = cs.filter((c: any) => !(c.estado === 'agendada' || c.estado === 'asistio'));
+            const vacias = Math.max(0, cfg.cupo - camas.length);
             const b = bloqDe(fecha, h);
             return (
-              <div className="hour" key={h}>
+              <div className={'hour' + (over === h ? ' dropping' : '')} key={h} onDragOver={(e) => { if (dragId) { e.preventDefault(); setOver(h); } }} onDragLeave={() => setOver((o) => (o === h ? null : o))} onDrop={(e) => { e.preventDefault(); soltar(h); }}>
                 <HourHead h={h} all={all} cupo={cfg.cupo} onWho={() => setWho(h)} />
                 <div className="hour-b">
                   {b && <div className="blk">⛔ {b.motivo}</div>}
-                  {cs.map((c: any) => <ClassPill key={c.id} c={c} idx={idx} onClick={() => setSel(c)} />)}
-                  <button className="plus" onClick={() => setNuevo({ f: fecha, h })} aria-label="Agregar">+</button>
+                  <div className="camas" style={{ gridTemplateColumns: `repeat(${Math.max(1, Math.max(cfg.cupo, camas.length))}, minmax(0, 1fr))` }}>
+                    {camas.map((c: any) => <ClassPill key={c.id} c={c} idx={idx} onClick={() => setSel(c)} drag={c.estado === 'agendada'} onDragStart={() => setDragId(c.id)} onDragEnd={() => { setDragId(null); setOver(null); }} />)}
+                    {Array.from({ length: vacias }, (_, i) => <button key={'v' + i} className="cama-v" onClick={() => setNuevo({ f: fecha, h })} aria-label="Cama libre">+</button>)}
+                  </div>
+                  {otras.length > 0 && <div className="otras">{otras.map((c: any) => <ClassPill key={c.id} c={c} idx={idx} onClick={() => setSel(c)} />)}</div>}
                 </div>
               </div>
             );
           })}
+          <div className="muted small pad">Arrastrá a una persona a otra hora para cambiarla solo por ese día (en el celular: tocá la clase → «Cambiar la hora»).</div>
         </div>
       )}
       {vista === 'semana' && (
@@ -81,16 +100,18 @@ export default function Agenda({ openPersona }: { openPersona: (id: string) => v
           {lista.length > 300 && <div className="muted small pad">Mostrando 300 de {lista.length}. Afiná los filtros.</div>}</div>
       )}
       {who && <QuienesSheet fecha={fecha} hora={who} onClose={() => setWho(null)} />}
+      {slotNode}
       {sel && <ClassSheet c={sel} onClose={() => setSel(null)} onOpenPersona={openPersona} />}
       {nuevo && <NewClassSheet onClose={() => setNuevo(null)} presetFecha={nuevo.f} presetHora={nuevo.h} />}
     </div>
   );
 }
 
-export function ClassPill({ c, idx, onClick }: { c: any; idx: any; onClick: () => void }) {
+export function ClassPill({ c, idx, onClick, drag, onDragStart, onDragEnd }: { c: any; idx: any; onClick: () => void; drag?: boolean; onDragStart?: () => void; onDragEnd?: () => void }) {
   const p = idx.personaById.get(c.persona_id);
-  const cls = c.estado === 'asistio' ? 'done' : c.estado === 'ausente' ? 'aus' : c.estado === 'no_dada' ? 't-nodada' : 't-' + c.tipo;
-  return <button className={'pill ' + cls} onClick={onClick}>{c.estado === 'asistio' ? '✓ ' : c.tipo === 'recuperacion' ? '↺ ' : ''}{p?.nombre}{c.tipo === 'prueba' ? ' · prueba' : ''}{c.estado === 'ausente' ? ' · ausente' : ''}</button>;
+  const sc = c.estado === 'ausente' && sinCulpa(c);
+  const cls = c.estado === 'asistio' ? 'done' : sc ? 'cancel' : c.estado === 'ausente' ? 'aus' : c.estado === 'no_dada' ? 't-nodada' : 't-' + c.tipo;
+  return <button draggable={!!drag} onDragStart={(e) => { e.dataTransfer?.setData('text/plain', c.id); onDragStart && onDragStart(); }} onDragEnd={onDragEnd} className={'pill ' + cls + (p?.baneado ? ' ban' : '')} onClick={onClick}>{c.estado === 'asistio' ? '✓ ' : c.tipo === 'recuperacion' ? '↺ ' : ''}{p?.nombre}{c.tipo === 'prueba' ? ' · prueba' : ''}{sc ? ` · ${c.motivo_ausencia === 'feriado' ? 'feriado' : 'cancelada'}` : c.estado === 'ausente' ? ' · ausente' : ''}{cambioHora(c) && <span className="hmark" title={`Cambio de hora solo ese día (era ${hm(c.hora_original)})`}> ⇄</span>}</button>;
 }
 
 function HourHead({ h, all, cupo, onWho }: { h: string; all: number; cupo: number; onWho: () => void }) {

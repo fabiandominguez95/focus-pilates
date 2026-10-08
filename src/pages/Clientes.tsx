@@ -38,7 +38,7 @@ export default function Clientes({ openPersona }: { openPersona: (id: string) =>
       <div className="muted small pad">{list.length} personas</div>
       <div className="list">
         {list.slice(0, 200).map(({ p, e, s }: any) => (
-          <div key={p.id} className={'row-card plain' + (e.color ? ' c-' + e.color : '')} onClick={() => openPersona(p.id)}>
+          <div key={p.id} className={'row-card plain' + (p.baneado ? ' ban' : e.color ? ' c-' + e.color : '')} onClick={() => openPersona(p.id)}>
             <div className="grow"><b>{p.nombre}</b><div className="small muted">{e.sub?.plan_nombre ? e.sub.plan_nombre + ' · ' : ''}{s.asist} asist. {s.ultima ? `· última ${fmtDate(s.ultima)}` : ''}</div></div><StageBadge e={e} /></div>
         ))}
         {list.length > 200 && <div className="muted small pad">Mostrando 200. Usá la búsqueda para afinar.</div>}
@@ -81,8 +81,8 @@ function NuevaPersona({ onClose, onCreated }: { onClose: () => void; onCreated: 
   );
 }
 
-const SQ_SYM: Record<string, string> = { ok: '✓', rec: '↺', rec_pend: '↺', aus: '', perdida: '', pend: '', sin_cerrar: '?', no_dada: '…' };
-const SQ_LEGEND: [string, string][] = [['ok', 'Asistió'], ['rec', 'Recuperada'], ['aus', 'Ausente, recuperable'], ['perdida', 'No recuperó'], ['pend', 'Pendiente'], ['no_dada', 'No dada']];
+const SQ_SYM: Record<string, string> = { cancel: '↺', ok: '✓', rec: '↺', rec_pend: '↺', aus: '', perdida: '', pend: '', sin_cerrar: '?', no_dada: '…' };
+const SQ_LEGEND: [string, string][] = [['ok', 'Asistió'], ['rec', 'Recuperada'], ['aus', 'Ausente, recuperable'], ['perdida', 'No recuperó'], ['pend', 'Pendiente'], ['no_dada', 'No dada'], ['cancel', 'Cancelada (feriado/estudio): no es falta']];
 export function Squares({ sq, onPick }: { sq: Square[]; onPick: (c: any) => void }) {
   if (!sq.length) return <div className="muted small">Sin clases en este período.</div>;
   return (<div><div className="squares">{sq.map((s, i) => (
@@ -111,18 +111,19 @@ export function PersonaSheet({ id, onClose }: { id: string; onClose: () => void 
   return (
     <Sheet title={p.nombre} onClose={onClose} wide>
       {node}
-      <div className="row between"><div><StageBadge e={e} /> {p.no_contactar && <span className="badge">No contactar</span>}<div className="muted small" style={{ marginTop: 4 }}>{phonePretty(p.celular) || 'Sin celular'}{tutor ? ` · Tutor: ${tutor.nombre}` : ''}{menores.length ? ` · Tutor de ${menores.map((m: any) => m.nombre.split(' ')[0]).join(', ')}` : ''}</div></div></div>
+      <div className="row between"><div><StageBadge e={e} /> {p.baneado && <span className="badge ban">⛔ Baneado/a</span>} {p.no_contactar && <span className="badge">No contactar</span>}<div className="muted small" style={{ marginTop: 4 }}>{phonePretty(p.celular) || 'Sin celular'}{tutor ? ` · Tutor: ${tutor.nombre}` : ''}{menores.length ? ` · Tutor de ${menores.map((m: any) => m.nombre.split(' ')[0]).join(', ')}` : ''}</div></div></div>
       <div className="actions">
         {isAdmin && <button className="btn" onClick={() => setRenew(true)}>{subsMens.length ? 'Renovar' : 'Inscribir'}</button>}
         <button className="btn" onClick={() => setNuevaClase(true)}>Agendar clase</button>
         <button className="btn ghost" disabled={sinCel} onClick={() => wa(p, e.atraso > 0 ? 'atraso' : 'renovacion', { vence: e.sub ? fmtDate(e.sub.fin) : '', plan: e.sub?.plan_nombre || 'plan' })}>WhatsApp</button>
         {isAdmin && <button className="btn ghost" onClick={() => setPortal(true)}>Enlace de alumno/a</button>}
+        {isAdmin && <button className="btn ghost" onClick={async () => { if (p.baneado) { if (await ask(`¿Quitar el baneo a ${p.nombre}?`)) await toggle({ baneado: false, baneo_nota: null }); } else if (await ask(`¿Banear a ${p.nombre}? Se la excluye para siempre de «Reactivar clientes» y queda marcada en negro. Se puede deshacer desde Configuración.`)) await toggle({ baneado: true, no_contactar: true }); }}>{p.baneado ? 'Quitar baneo' : '⛔ Banear'}</button>}
         {isAdmin && <button className="btn ghost" onClick={() => setEdit(!edit)}>{edit ? 'Cerrar edición' : 'Editar'}</button>}
       </div>
       {edit && isAdmin && <EditPersona p={p} onDone={() => setEdit(false)} />}
 
       <div className="stats">
-        <div><b>{s.asist}</b><span>Asistencias</span></div><div><b>{s.ausentes}</b><span>Ausencias</span></div><div><b>{s.recup}</b><span>Recuperadas</span></div><div><b>{antig}</b><span>Antigüedad</span></div>
+        <div><b>{s.asist}</b><span>Asistencias</span></div><div><b>{s.ausentes}</b><span>Ausencias</span></div>{s.canceladas > 0 && <div><b>{s.canceladas}</b><span>Canceladas (no falta)</span></div>}<div><b>{s.recup}</b><span>Recuperadas</span></div><div><b>{antig}</b><span>Antigüedad</span></div>
         {isAdmin && <><div><b>{gs(s.ticket)}</b><span>Ticket prom.</span></div><div><b>{gs(s.pagado)}</b><span>Total pagado</span></div></>}
         <div><b>{s.meses}</b><span>Suscripciones</span></div><div><b>{s.ultima ? fmtDate(s.ultima) : '—'}</b><span>Última clase</span></div>
       </div>
