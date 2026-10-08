@@ -73,9 +73,14 @@ function Reactivar({ openPersona }: { openPersona: (id: string) => void }) {
   const [tab, setTab] = useState<'no_se_inscribio' | 'no_renovo'>('no_se_inscribio');
   const lastContact = useMemo(() => { const m = new Map<string, string>(); d.avisos.forEach((a: any) => { if (!a.tipo.startsWith('invitacion')) return; const f = (a.creado_en || '').slice(0, 10); if (!m.has(a.persona_id) || f > m.get(a.persona_id)!) m.set(a.persona_id, f); }); return m; }, [d.avisos]);
   const rows = useMemo(() => d.personas.map((p: any) => ({ p, e: estadoPersona(p, idx, cfg, hoy), s: personaStats(p, idx, hoy, cfg.recup_dias) })).filter((r: any) => r.e.stage === tab && !r.p.baneado), [d, idx, cfg, hoy, tab]);
-  const items = rows.map((r: any) => { const lc = lastContact.get(r.p.id); const since = lc ? diffDays(hoy, lc) : null; const ok = !r.p.no_contactar && !!r.p.celular && (since === null || since >= cfg.espera_contacto_dias); return { ...r, lc, since, ok }; });
-  const listos = items.filter((x: any) => x.ok).sort((a: any, b: any) => (b.s.ultima || '').localeCompare(a.s.ultima || '')); const esperando = items.filter((x: any) => !x.ok);
+  const items = rows.map((r: any) => { const lc = lastContact.get(r.p.id); const since = lc ? diffDays(hoy, lc) : null; const g = r.p.no_contactar ? 'nc' : !r.p.celular ? 'sc' : since !== null && since < cfg.espera_contacto_dias ? 'esp' : 'ok'; return { ...r, lc, since, g }; });
+  const listos = items.filter((x: any) => x.g === 'ok').sort((a: any, b: any) => (b.s.ultima || '').localeCompare(a.s.ultima || ''));
+  const esperando = items.filter((x: any) => x.g === 'esp'); const sinCel = items.filter((x: any) => x.g === 'sc'); const noCont = items.filter((x: any) => x.g === 'nc');
+  const [open, setOpen] = useState<{ sc: boolean; nc: boolean }>({ sc: false, nc: false });
   const escribir = (x: any) => wa(x.p, tab === 'no_se_inscribio' ? 'invitacion_prueba' : 'invitacion_inactiva', {}, { tipo: tab === 'no_se_inscribio' ? 'invitacion_prueba' : 'invitacion_inactiva', ref: hoy });
+  const devolverEspera = async (x: any) => { try { for (const a of d.avisos.filter((a: any) => a.persona_id === x.p.id && a.tipo.startsWith('invitacion'))) await upd('avisos', a.id, { deleted_at: new Date().toISOString() }); toast('Volvió a la lista'); } catch (e: any) { toast('Error: ' + e.message); } };
+  const devolverNc = (x: any) => upd('personas', x.p.id, { no_contactar: false }).then(() => toast('Volvió a la lista')).catch((e: any) => toast('Error: ' + e.message));
+  const Fila = ({ x, sub, btn }: any) => <div className="row-card plain" onClick={() => openPersona(x.p.id)}><div className="grow"><b>{x.p.nombre}</b><div className="small muted">{sub}</div></div>{btn && <button className="btn sm ghost" onClick={(e) => { e.stopPropagation(); btn[1](); }}>{btn[0]}</button>}</div>;
   return (<div>
     <div className="muted small pad">Invitá a volver a quienes hicieron la prueba y no siguieron, o dejaron de venir.</div>
     <Seg value={tab} onChange={setTab} options={[['no_se_inscribio', 'Solo hicieron prueba'], ['no_renovo', 'Dejaron de venir']]} />
@@ -85,7 +90,8 @@ function Reactivar({ openPersona }: { openPersona: (id: string) => void }) {
       <div className="row-card plain" key={x.p.id}><div className="grow" onClick={() => openPersona(x.p.id)}><b>{x.p.nombre}</b><div className="small muted">{x.s.ultima ? `última clase ${fmtDate(x.s.ultima)}` : 'sin clases'}{x.lc ? ` · le escribiste hace ${x.since} d` : ''}</div></div>
         <button className="btn sm" onClick={() => escribir(x)}>Invitar</button>
         {isAdmin && <button className="x2" title="No contactar" onClick={() => upd('personas', x.p.id, { no_contactar: true }).then(() => toast('Marcada como no contactar'))}>⊘</button>}</div>))}</div>
-    {esperando.length > 0 && <><h3>En espera / no contactar ({esperando.length})</h3><div className="list dim">{esperando.map((x: any) => (
-      <div className="row-card plain" key={x.p.id} onClick={() => openPersona(x.p.id)}><div className="grow"><b>{x.p.nombre}</b><div className="small muted">{x.p.no_contactar ? 'No contactar' : !x.p.celular ? 'Sin celular' : `le escribiste hace ${x.since} d · de nuevo en ${cfg.espera_contacto_dias - x.since} d`}</div></div></div>))}</div></>}
+    {esperando.length > 0 && <><h3>En espera ({esperando.length})</h3><div className="muted small pad">Ya se les escribió; vuelven solos a los {cfg.espera_contacto_dias} días. Podés devolverlos antes.</div><div className="list dim">{esperando.map((x: any) => <Fila key={x.p.id} x={x} sub={`le escribiste hace ${x.since} d · de nuevo en ${cfg.espera_contacto_dias - x.since} d`} btn={['Devolver a la lista', () => devolverEspera(x)]} />)}</div></>}
+    {sinCel.length > 0 && <><button className="btn ghost sm" style={{ marginTop: 14 }} onClick={() => setOpen({ ...open, sc: !open.sc })}>{open.sc ? '▾' : '▸'} Sin celular ({sinCel.length})</button>{open.sc && <div className="list dim">{sinCel.map((x: any) => <Fila key={x.p.id} x={x} sub="Sin celular: cargalo en su perfil para poder invitarlo/a" />)}</div>}</>}
+    {noCont.length > 0 && <><button className="btn ghost sm" style={{ marginTop: 14 }} onClick={() => setOpen({ ...open, nc: !open.nc })}>{open.nc ? '▾' : '▸'} No contactar ({noCont.length})</button>{open.nc && <div className="list dim">{noCont.map((x: any) => <Fila key={x.p.id} x={x} sub="Marcado/a como no contactar" btn={isAdmin ? ['Devolver a la lista', () => devolverNc(x)] : null} />)}</div>}</>}
   </div>);
 }
