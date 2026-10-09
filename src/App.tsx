@@ -84,7 +84,25 @@ function PwSheet({ onClose }: { onClose: () => void }) {
   return <Sheet title="Cambiar contraseña" onClose={onClose}><div className="stack"><Field label="Nueva contraseña (mínimo 6)"><input type="password" value={pw} onChange={(e) => setPw(e.target.value)} /></Field><button className="btn big" disabled={pw.length < 6} onClick={async () => { try { await changeOwnPassword(pw); toast('Contraseña actualizada'); onClose(); } catch (e: any) { toast(e.message); } }}>Guardar</button></div></Sheet>;
 }
 
+// Arrastrar hacia abajo desde arriba de cualquier pantalla para actualizar (datos y versión de la app)
+function PullToRefresh() {
+  const [dy, setDy] = useState(0); const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    let y0 = 0; let on = false; let cur = 0; const TH = 80;
+    const start = (e: TouchEvent) => { on = false; cur = 0; if (window.scrollY > 0 || document.querySelector('.scrim') || e.touches.length !== 1) return; y0 = e.touches[0].clientY; on = true; };
+    const move = (e: TouchEvent) => { if (!on) return; const d = e.touches[0].clientY - y0; if (d <= 0) { cur = 0; setDy(0); return; } if (window.scrollY > 0) { on = false; setDy(0); return; } cur = Math.min(d * 0.5, 120); setDy(cur); };
+    const end = async () => { if (!on) return; on = false; if (cur >= TH * 0.6) { setBusy(true); setDy(48); try { const r = await navigator.serviceWorker?.getRegistration(); await r?.update(); } catch { /* */ } location.reload(); } else setDy(0); };
+    document.addEventListener('touchstart', start, { passive: true }); document.addEventListener('touchmove', move, { passive: true }); document.addEventListener('touchend', end); document.addEventListener('touchcancel', end);
+    return () => { document.removeEventListener('touchstart', start); document.removeEventListener('touchmove', move); document.removeEventListener('touchend', end); document.removeEventListener('touchcancel', end); };
+  }, []);
+  if (!dy && !busy) return null;
+  return <div className="ptr" style={{ transform: `translate(-50%, ${dy - 44}px)` }}><span className={busy ? 'spin' : ''} style={{ transform: busy ? undefined : `rotate(${dy * 3}deg)` }}>↻</span></div>;
+}
+
 export default function App() {
+  return <><PullToRefresh /><AppInner /></>;
+}
+function AppInner() {
   const [hash, setHash] = useState(location.hash);
   useEffect(() => { const f = () => setHash(location.hash); window.addEventListener('hashchange', f); return () => window.removeEventListener('hashchange', f); }, []);
   const [ok, setOk] = useState(hasSession());

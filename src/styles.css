@@ -130,3 +130,7 @@ section{margin-top:22px}.sec-head{display:flex;align-items:center;justify-conten
 .pill.ban,.row-card.ban{background:#1f1f1f;color:#fff;border-color:#000}.row-card.ban .muted,.row-card.ban .small{color:#bbb}
 .badge.ban{background:#111;color:#fff;border-color:#000}
 .rec-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}.rec-chips button{border:1px solid var(--line);background:var(--surface);border-radius:99px;padding:3px 10px;font-size:12px}
+
+html,body{overscroll-behavior-y:contain}
+.ptr{position:fixed;top:env(safe-area-inset-top);left:50%;z-index:200;width:40px;height:40px;border-radius:50%;background:var(--surface);box-shadow:var(--shadow);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:var(--sage-d);font-size:20px;pointer-events:none}
+.ptr .spin{display:inline-block;animation:ptrspin .8s linear infinite}@keyframes ptrspin{to{transform:rotate(360deg)}}
