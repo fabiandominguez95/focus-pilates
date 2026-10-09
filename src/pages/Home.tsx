@@ -4,6 +4,7 @@ import { buildIndex, claseTerminada, recupRestante, sinCulpa, cambioHora } from 
 import { Ring, Empty } from '../ui';
 import { ClassSheet, NewClassSheet, TIPO_LABEL, useClassOps, useWhats, useUndoAviso, useFeriadoSet, SlotPicker, useSlotCheck, motivoLabel } from '../classes';
 import { RenewSheet } from '../subs';
+import { NuevaPersona } from '../nueva';
 import { useSeguimiento } from './Seguimiento';
 import { Sheet } from '../ui';
 import { WaDot } from '../classes';
@@ -13,7 +14,7 @@ export default function Home({ openPersona }: { openPersona: (id: string) => voi
   const { d, cfg, hoy } = useApp();
   const idx = useMemo(() => buildIndex(d), [d]);
   const fer = useFeriadoSet(); const ops = useClassOps(); const wa = useWhats(); const undoWa = useUndoAviso(); const { check, node } = useSlotCheck();
-  const [sel, setSel] = useState<any>(null); const [nuevo, setNuevo] = useState(false); const [renew, setRenew] = useState<any>(null);
+  const [sel, setSel] = useState<any>(null); const [nuevo, setNuevo] = useState(false); const [nuevaP, setNuevaP] = useState(false); const [renew, setRenew] = useState<any>(null);
   const [more, setMore] = useState<Record<string, boolean>>({}); const lim = (k: string, a: any[]) => (more[k] ? a : a.slice(0, 5)); const MoreBtn = ({ k, n }: { k: string; n: number }) => (n > 5 ? <button className="btn ghost sm" style={{ marginTop: 8 }} onClick={() => setMore({ ...more, [k]: !more[k] })}>{more[k] ? 'Ver menos' : `Ver las ${n}`}</button> : null);
   const [fixing, setFixing] = useState<any>(null); const [fx, setFx] = useState({ f: hoy, h: '' });
 
@@ -111,7 +112,8 @@ export default function Home({ openPersona }: { openPersona: (id: string) => voi
       {sinTareas && <Empty>Todo al día. No queda nada pendiente.</Empty>}
 
       {sel && <ClassSheet c={sel} onClose={() => setSel(null)} onOpenPersona={openPersona} />}
-      {nuevo && <NewClassSheet onClose={() => setNuevo(false)} />}
+      {nuevo && <NewClassSheet onClose={() => setNuevo(false)} onNuevo={() => { setNuevo(false); setNuevaP(true); }} />}
+      {nuevaP && <NuevaPersona onClose={() => setNuevaP(false)} onCreated={(id) => { setNuevaP(false); openPersona(id); }} />}
       {inscr && <Sheet title={'¿Se inscribió ' + inscr.nombre.split(' ')[0] + '?'} onClose={() => setInscr(null)}><div className="stack"><div className="muted">Elegí plan, días y horarios para dejarlo/a inscripto/a.</div><button className="btn big" onClick={() => { setRenew(inscr); setInscr(null); }}>Sí, inscribir</button><button className="btn ghost" onClick={() => setInscr(null)}>Todavía no</button></div></Sheet>}
       {renew && <RenewSheet persona={renew} onClose={() => setRenew(null)} />}
     </div>

@@ -225,7 +225,7 @@ export function ClassSheet({ c, onClose, onOpenPersona }: { c: any; onClose: () 
   );
 }
 
-export function NewClassSheet({ onClose, presetFecha, presetHora, presetPersona }: { onClose: () => void; presetFecha?: string; presetHora?: string; presetPersona?: string }) {
+export function NewClassSheet({ onClose, presetFecha, presetHora, presetPersona, onNuevo }: { onClose: () => void; presetFecha?: string; presetHora?: string; presetPersona?: string; onNuevo?: () => void }) {
   const { d, hoy, upd, cfg } = useApp(); const ops = useClassOps(); const { check, node } = useSlotCheck(); const { ask, node: node2 } = useConfirm();
   const [pid, setPid] = useState(presetPersona || ''); const [tipo, setTipo] = useState('prueba'); const [aus, setAus] = useState(''); const [sinFalta, setSinFalta] = useState(false);
   const [f, setF] = useState(presetFecha || hoy); const [h, setH] = useState(presetHora || ''); const [exc, setExc] = useState(false);
@@ -250,7 +250,7 @@ export function NewClassSheet({ onClose, presetFecha, presetHora, presetPersona 
     <Sheet title="Agendar clase" onClose={onClose}>
       {node}{node2}
       <div className="stack">
-        {!presetPersona && <Field label="Persona"><PersonaPicker value={pid} onChange={(v) => { setPid(v); setAus(''); }} allowCreate={tipo === 'prueba'} autoFocus /></Field>}
+        {!presetPersona && <Field label="Persona"><PersonaPicker value={pid} onChange={(v) => { setPid(v); setAus(''); }} allowCreate={false} autoFocus />{onNuevo && !pid && <button type="button" className="btn ghost sm" style={{ marginTop: 6 }} onClick={onNuevo}>+ Cliente nuevo (con celular, prueba o inscripción)</button>}</Field>}
         <Field label="Tipo de clase"><div className="chips wrap">{([['prueba', 'Prueba (primera vez)'], ['recuperacion', 'Recuperación'], ['unica', 'Clase única (excepcional)']] as const).map(([k, l]) => <button type="button" key={k} className={'chip' + (tipo === k ? ' on' : '')} onClick={() => setTipo(k)}>{l}</button>)}</div></Field>
         {tipo === 'recuperacion' && p && (
           <Field label="¿Qué falta recupera?">

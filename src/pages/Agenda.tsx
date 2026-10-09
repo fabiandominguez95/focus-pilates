@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useApp } from '../store';
 import { buildIndex, slotKey, sinCulpa, cambioHora } from '../logic';
 import { Seg } from '../ui';
+import { NuevaPersona } from '../nueva';
 import { ClassSheet, NewClassSheet, TIPO_LABEL, horasDisponibles, motivoLabel, QuienesSheet, useLongPress, useClassOps, useSlotCheck } from '../classes';
 import { addDays, DIAS3, dowISO, fmtDate, fmtLong, hm, monthLabel, parseD, ymd, addMonthKey, normStr } from '../util';
 
@@ -11,7 +12,7 @@ export default function Agenda({ openPersona }: { openPersona: (id: string) => v
   const [fecha, setFecha] = useState(hoy); const [vista, setVista] = useState<'dia' | 'semana' | 'lista'>('dia');
   const [quick, setQuick] = useState('todo'); const [tipo, setTipo] = useState(''); const [estado, setEstado] = useState(''); const [profe, setProfe] = useState(''); const [q, setQ] = useState('');
   const ops = useClassOps(); const { check, node: slotNode } = useSlotCheck(); const [full, setFull] = useState(false); const [dragId, setDragId] = useState<string | null>(null); const [over, setOver] = useState<string | null>(null);
-  const [who, setWho] = useState<string | null>(null); const [more, setMore] = useState(false); const [sel, setSel] = useState<any>(null); const [nuevo, setNuevo] = useState<any>(null);
+  const [who, setWho] = useState<string | null>(null); const [more, setMore] = useState(false); const [sel, setSel] = useState<any>(null); const [nuevo, setNuevo] = useState<any>(null); const [nuevaP, setNuevaP] = useState(false);
 
   const filtrar = (c: any) => {
     if (quick === 'rec' && c.tipo !== 'recuperacion') return false;
@@ -102,7 +103,8 @@ export default function Agenda({ openPersona }: { openPersona: (id: string) => v
       {who && <QuienesSheet fecha={fecha} hora={who} onClose={() => setWho(null)} />}
       {slotNode}
       {sel && <ClassSheet c={sel} onClose={() => setSel(null)} onOpenPersona={openPersona} />}
-      {nuevo && <NewClassSheet onClose={() => setNuevo(null)} presetFecha={nuevo.f} presetHora={nuevo.h} />}
+      {nuevo && <NewClassSheet onClose={() => setNuevo(null)} presetFecha={nuevo.f} presetHora={nuevo.h} onNuevo={() => { setNuevo(null); setNuevaP(true); }} />}
+      {nuevaP && <NuevaPersona onClose={() => setNuevaP(false)} onCreated={(id) => { setNuevaP(false); openPersona(id); }} />}
     </div>
   );
 }
