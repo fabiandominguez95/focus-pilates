@@ -23,7 +23,7 @@ export default function Home({ openPersona }: { openPersona: (id: string) => voi
   const totalDia = delDia.length - noCuentan;
   const porCerrar = d.clases.filter((c: any) => c.fecha < hoy && c.estado === 'agendada').sort((a: any, b: any) => (b.fecha + b.hora).localeCompare(a.fecha + a.hora));
   const aConfirmar = d.clases.filter((c: any) => c.estado === 'no_dada' && c.a_confirmar);
-  const porRecuperar = d.clases.filter((c: any) => c.estado === 'ausente' && !c.ausencia_resolucion && c.tipo !== 'prueba' && c.fecha <= hoy && recupRestante(c, hoy, cfg.recup_dias) >= 0);
+  const porRecuperar = d.clases.filter((c: any) => c.estado === 'ausente' && !c.ausencia_resolucion && c.fecha <= hoy && recupRestante(c, hoy, cfg.recup_dias) >= 0);
   const recPersonas = useMemo(() => { const m = new Map<string, any[]>(); porRecuperar.forEach((c: any) => (m.get(c.persona_id) || m.set(c.persona_id, []).get(c.persona_id)!).push(c)); return [...m.entries()].map(([pid, cs]) => ({ pid, cs: cs.sort((a: any, b: any) => a.fecha.localeCompare(b.fecha)), min: Math.min(...cs.map((c: any) => recupRestante(c, hoy, cfg.recup_dias))) })).sort((a, b) => a.min - b.min); }, [porRecuperar, hoy]);
   const enFeriado = d.clases.filter((c: any) => c.estado === 'agendada' && c.fecha >= hoy && fer.has(c.fecha)).sort((a: any, b: any) => (a.fecha + a.hora).localeCompare(b.fecha + b.hora));
   const pasarFeriados = async () => { for (const c of enFeriado) await ops.ausente(c, 'feriado'); };
