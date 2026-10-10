@@ -4,7 +4,7 @@ import { buildIndex, estadoPersona } from '../logic';
 import { Sheet, Field, Seg, useConfirm } from '../ui';
 import { adminFn, historial, changeOwnPassword, fetchAll } from '../api';
 import { buildXlsx, download } from '../xlsx';
-import { fmtDate, gs, hm, monthLabel, addDays } from '../util';
+import { fmtDate, gs, hm, monthLabel, DIAS } from '../util';
 import { allMonths } from '../fin';
 import { DEFAULT_TPL } from '../classes';
 import { paCfg } from '../pruebas';
@@ -69,26 +69,37 @@ function AvisosPruebas() {
 }
 function NoDisponible() {
   const { d, ins, upd, hoy, toast } = useApp(); const { ask, node } = useConfirm();
-  const [f, setF] = useState({ desde: hoy, hasta: '', todo: true, h1: '08:00', h2: '12:00', motivo: '' });
-  const grupos = useMemo(() => { const m = new Map<string, any[]>(); d.bloqueos.filter((b: any) => b.tipo === 'bloqueo' && b.fecha >= hoy).forEach((b: any) => { const k = b.grupo || b.id; (m.get(k) || m.set(k, []).get(k)!).push(b); }); return [...m.values()].map((r) => r.sort((a: any, b: any) => a.fecha.localeCompare(b.fecha))).sort((a, b) => a[0].fecha.localeCompare(b[0].fecha)); }, [d.bloqueos, hoy]);
-  const crear = async () => {
-    const hasta = f.hasta || f.desde; if (hasta < f.desde) { toast('La fecha final es anterior a la inicial'); return; }
-    const fechas: string[] = []; for (let x = f.desde; x <= hasta && fechas.length < 120; x = addDays(x, 1)) fechas.push(x);
-    const g = crypto.randomUUID();
-    try { for (const fe of fechas) await ins('bloqueos', { fecha: fe, hora_desde: f.todo ? '00:00' : f.h1, hora_hasta: f.todo ? '23:59' : f.h2, motivo: f.motivo.trim() || 'No disponible', tipo: 'bloqueo', grupo: g }); toast('Guardado'); setF({ ...f, hasta: '', motivo: '' }); } catch (e: any) { toast('Error: ' + e.message); }
+  const VACIO = { id: '', desde: hoy, hasta: '', siempre: false, dias: [] as number[], todo: true, h1: '08:00', h2: '12:00', motivo: '' };
+  const [f, setF] = useState<any>(VACIO);
+  const lista = useMemo(() => d.bloqueos.filter((b: any) => b.tipo === 'bloqueo' && (b.indefinido || (b.fecha_hasta || b.fecha) >= hoy)).sort((a: any, b: any) => a.fecha.localeCompare(b.fecha)), [d.bloqueos, hoy]);
+  const esTodo = (b: any) => hm(b.hora_desde) <= '00:00' && hm(b.hora_hasta) >= '23:59';
+  const editar = (b: any) => { setF({ id: b.id, desde: b.fecha, hasta: b.fecha_hasta || '', siempre: !!b.indefinido, dias: b.dias || [], todo: esTodo(b), h1: esTodo(b) ? '08:00' : hm(b.hora_desde), h2: esTodo(b) ? '12:00' : hm(b.hora_hasta), motivo: b.motivo === 'No disponible' ? '' : (b.motivo || '') }); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  const guardar = async () => {
+    if (!f.siempre && f.hasta && f.hasta < f.desde) { toast('La fecha final es anterior a la inicial'); return; }
+    if (!f.todo && f.h2 <= f.h1) { toast('La hora final debe ser mayor que la inicial'); return; }
+    const row = { fecha: f.desde, fecha_hasta: f.siempre ? null : (f.hasta && f.hasta !== f.desde ? f.hasta : null), indefinido: !!f.siempre, dias: f.dias.length ? f.dias : null, hora_desde: f.todo ? '00:00' : f.h1, hora_hasta: f.todo ? '23:59' : f.h2, motivo: f.motivo.trim() || 'No disponible', tipo: 'bloqueo' };
+    try { if (f.id) await upd('bloqueos', f.id, row); else await ins('bloqueos', row); toast(f.id ? 'Cambios guardados' : 'Guardado'); setF(VACIO); } catch (e: any) { toast('Error: ' + e.message); }
   };
-  const quitar = async (rows: any[]) => { if (!(await ask('¿Quitar este bloqueo? Vuelve a estar disponible.'))) return; try { for (const b of rows) await upd('bloqueos', b.id, { deleted_at: new Date().toISOString() }); toast('Quitado'); } catch (e: any) { toast('Error: ' + e.message); } };
-  const rango = (r: any[]) => { const a = r[0], z = r[r.length - 1]; const fechas = a.fecha === z.fecha ? fmtDate(a.fecha) : `${fmtDate(a.fecha)} al ${fmtDate(z.fecha)}`; const todo = hm(a.hora_desde) <= '00:00' && hm(a.hora_hasta) >= '23:59'; return `${fechas} · ${todo ? 'todo el día' : `${hm(a.hora_desde)} a ${hm(a.hora_hasta)}`}`; };
+  const quitar = async (b: any) => { if (!(await ask('¿Quitar esta no disponibilidad? Esos horarios vuelven a estar disponibles.'))) return; try { await upd('bloqueos', b.id, { deleted_at: new Date().toISOString() }); toast('Quitado'); if (f.id === b.id) setF(VACIO); } catch (e: any) { toast('Error: ' + e.message); } };
+  const desc = (b: any) => {
+    const ds = b.dias && b.dias.length ? 'Cada ' + b.dias.slice().sort().map((x: number) => DIAS[x % 7]).join(', ') : 'Todos los días';
+    const fe = b.indefinido ? `desde el ${fmtDate(b.fecha)}, sin fecha de fin` : b.fecha_hasta ? `${fmtDate(b.fecha)} al ${fmtDate(b.fecha_hasta)}` : fmtDate(b.fecha);
+    const hr = esTodo(b) ? 'todo el día' : `${hm(b.hora_desde)} a ${hm(b.hora_hasta)}`;
+    return (b.indefinido || b.fecha_hasta ? ds + ' · ' : '') + fe + ' · ' + hr;
+  };
+  const toggleDia = (x: number) => setF({ ...f, dias: f.dias.includes(x) ? f.dias.filter((y: number) => y !== x) : [...f.dias, x] });
   return (<div className="stack">{node}
-    <div className="muted small">Días u horarios en que no hay clases (un curso, un viaje…). Se ven en la Agenda con otro color y no se ofrecen en «Ofrecer horarios».</div>
-    <div className="box stack"><b>Agregar</b>
-      <div className="row2"><Field label="Desde"><input type="date" value={f.desde} onChange={(e) => setF({ ...f, desde: e.target.value })} /></Field><Field label="Hasta (vacío = un día)"><input type="date" value={f.hasta} onChange={(e) => setF({ ...f, hasta: e.target.value })} /></Field></div>
+    <div className="muted small">Días u horarios en que no hay clases (un curso, la facultad, un viaje…). Se ven en la Agenda con otro color y no se ofrecen en «Ofrecer horarios».</div>
+    <div className="box stack"><b>{f.id ? 'Editar' : 'Agregar'}</b>
+      <div className="row2"><Field label="Desde"><input type="date" value={f.desde} onChange={(e) => setF({ ...f, desde: e.target.value })} /></Field>{!f.siempre && <Field label="Hasta (vacío = un día)"><input type="date" value={f.hasta} onChange={(e) => setF({ ...f, hasta: e.target.value })} /></Field>}</div>
+      <label className="check"><input type="checkbox" checked={f.siempre} onChange={(e) => setF({ ...f, siempre: e.target.checked })} /> Permanente (sin fecha de fin)</label>
+      <div><div className="small muted" style={{ marginBottom: 4 }}>Días de la semana (si no marcas ninguno, aplica a todos los días)</div><div className="chips">{[1, 2, 3, 4, 5, 6, 7].map((x) => <button key={x} className={'chip' + (f.dias.includes(x) ? ' on' : '')} onClick={() => toggleDia(x)}>{DIAS[x % 7].slice(0, 3)}</button>)}</div></div>
       <label className="check"><input type="checkbox" checked={f.todo} onChange={(e) => setF({ ...f, todo: e.target.checked })} /> Todo el día</label>
       {!f.todo && <div className="row2"><Field label="Desde la hora"><input type="time" value={f.h1} onChange={(e) => setF({ ...f, h1: e.target.value })} /></Field><Field label="Hasta la hora"><input type="time" value={f.h2} onChange={(e) => setF({ ...f, h2: e.target.value })} /></Field></div>}
-      <Field label="Motivo (opcional)"><input value={f.motivo} onChange={(e) => setF({ ...f, motivo: e.target.value })} placeholder="Curso, viaje…" /></Field>
-      <button className="btn" onClick={crear}>Agregar no disponibilidad</button></div>
-    <h3>Próximas</h3>{grupos.length === 0 && <div className="muted pad">No hay nada cargado.</div>}
-    <div className="list">{grupos.map((r) => <div className="row-card plain" key={r[0].id}><div className="grow"><b>{r[0].motivo || 'No disponible'}</b><div className="small muted">{rango(r)}</div></div><button className="btn ghost sm" onClick={() => quitar(r)}>Quitar</button></div>)}</div></div>);
+      <Field label="Motivo (opcional)"><input value={f.motivo} onChange={(e) => setF({ ...f, motivo: e.target.value })} placeholder="Curso, facultad, viaje…" /></Field>
+      <div className="row2"><button className="btn" onClick={guardar}>{f.id ? 'Guardar cambios' : 'Agregar'}</button>{f.id && <button className="btn ghost" onClick={() => setF(VACIO)}>Cancelar</button>}</div></div>
+    <h3>Cargadas</h3>{lista.length === 0 && <div className="muted pad">No hay nada cargado.</div>}
+    <div className="list">{lista.map((b: any) => <div className="row-card plain" key={b.id}><div className="grow"><b>{b.motivo || 'No disponible'}</b><div className="small muted">{desc(b)}</div></div><button className="btn ghost sm" onClick={() => editar(b)}>Editar</button><button className="btn ghost sm" onClick={() => quitar(b)}>Quitar</button></div>)}</div></div>);
 }
 function useSave() { const { toast } = useApp(); return async (fn: () => Promise<any>, ok = 'Guardado') => { try { await fn(); toast(ok); } catch (e: any) { toast('Error: ' + e.message); } }; }
 

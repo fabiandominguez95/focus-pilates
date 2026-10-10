@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../store';
-import { buildIndex, slotKey, sinCulpa, cambioHora } from '../logic';
+import { buildIndex, slotKey, sinCulpa, cambioHora, bloqAplica } from '../logic';
 import { Seg } from '../ui';
 import { NuevaPersona } from '../nueva';
 import { ClassSheet, NewClassSheet, TIPO_LABEL, horasDisponibles, motivoLabel, QuienesSheet, useLongPress, useClassOps, useSlotCheck } from '../classes';
@@ -43,7 +43,7 @@ export default function Agenda({ openPersona }: { openPersona: (id: string) => v
   const mes = fecha.slice(0, 7);
   const lista = useMemo(() => d.clases.filter((c: any) => c.fecha.startsWith(mes) && filtrar(c)).sort((a: any, b: any) => (b.fecha + b.hora).localeCompare(a.fecha + a.hora)), [d.clases, mes, quick, tipo, estado, profe, q]);
   const Chip = ({ v, l }: { v: string; l: string }) => <button className={'chip' + (quick === v ? ' on' : '')} onClick={() => setQuick(v)}>{l}</button>;
-  const bloqDe = (f: string, h: string) => d.bloqueos.find((b: any) => b.fecha === f && b.hora_desde && hm(b.hora_desde) <= h && hm(b.hora_hasta) > h);
+  const bloqDe = (f: string, h: string) => d.bloqueos.find((b: any) => bloqAplica(b, f) && b.hora_desde && hm(b.hora_desde) <= h && hm(b.hora_hasta) > h);
 
   return (
     <div className="page">

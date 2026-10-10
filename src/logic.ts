@@ -1,4 +1,4 @@
-import { addDays, diffDays, hm, minToTime, normStr, nowHM, timeToMin } from './util';
+import { parseD, addDays, diffDays, hm, minToTime, normStr, nowHM, timeToMin } from './util';
 
 export type Stage = 'prueba' | 'inscripta' | 'no_renovo' | 'no_se_inscribio' | 'nuevo' | 'unica';
 export const STAGE_LABEL: Record<Stage, string> = { prueba: 'Prueba', inscripta: 'Inscripto/a', no_renovo: 'No renovó', no_se_inscribio: 'No se inscribió', nuevo: 'Nuevo/a', unica: 'Clase única' };
@@ -122,4 +122,13 @@ export function horasDisponibles(cfg: any) {
   const a = timeToMin(cfg.apertura), c = timeToMin(cfg.cierre); const out: string[] = [];
   for (let m = Math.ceil(a / 60) * 60; m + 60 <= c; m += 60) out.push(minToTime(m)); // siempre en punto
   return out;
+}
+
+// ¿El bloqueo/no disponibilidad aplica a esa fecha? (día suelto, rango, o indefinido; opcionalmente solo ciertos días de semana)
+export function bloqAplica(b: any, f: string) {
+  if (b.deleted_at) return false;
+  const dow = parseD(f).getDay() || 7; const okDia = !b.dias || !b.dias.length || b.dias.includes(dow);
+  if (b.indefinido) return f >= b.fecha && okDia;
+  if (b.fecha_hasta) return f >= b.fecha && f <= b.fecha_hasta && okDia;
+  return b.fecha === f;
 }

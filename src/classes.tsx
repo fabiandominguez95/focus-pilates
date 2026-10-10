@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { useApp } from './store';
-import { buildIndex, slotKey, recupRestante, horasDisponibles, sinCulpa, cambioHora } from './logic';
+import { buildIndex, slotKey, recupRestante, horasDisponibles, sinCulpa, cambioHora, bloqAplica } from './logic';
 import { Sheet, Field, useConfirm } from './ui';
 import { PersonaPicker } from './picker';
 import { RenewSheet } from './subs';
@@ -122,7 +122,7 @@ export function SlotPicker({ fecha, hora, onChange, ignoreId, lockFecha }: { fec
     d.clases.forEach((c: any) => { if (c.id !== ignoreId && (c.estado === 'agendada' || c.estado === 'asistio')) m.set(slotKey(c.fecha, c.hora), (m.get(slotKey(c.fecha, c.hora)) || 0) + 1); });
     return m;
   }, [d.clases, ignoreId]);
-  const bloq = d.bloqueos.filter((b: any) => b.fecha === fecha);
+  const bloq = d.bloqueos.filter((b: any) => bloqAplica(b, fecha));
   const horas = horasDisponibles(cfg);
   return (
     <div>
@@ -145,7 +145,7 @@ export function useSlotCheck() {
   const check = async (fecha: string, hora: string, ignoreId?: string) => {
     const n = d.clases.filter((c: any) => c.id !== ignoreId && c.fecha === fecha && hm(c.hora) === hm(hora) && (c.estado === 'agendada' || c.estado === 'asistio')).length;
     if (n >= cfg.cupo) { if (!(await ask(`Ese horario ya tiene ${n}/${cfg.cupo} lugares ocupados. ¿Agendar igual?`))) return false; }
-    const b = d.bloqueos.find((x: any) => x.fecha === fecha && x.hora_desde && timeToMin(hm(x.hora_desde)) < timeToMin(hora) + 60 && timeToMin(hm(x.hora_hasta)) > timeToMin(hora));
+    const b = d.bloqueos.find((x: any) => bloqAplica(x, fecha) && x.hora_desde && timeToMin(hm(x.hora_desde)) < timeToMin(hora) + 60 && timeToMin(hm(x.hora_hasta)) > timeToMin(hora));
     if (b) { if (!(await ask(`Hay un bloqueo en ese horario (${b.motivo}). ¿Agendar igual?`))) return false; }
     return true;
   };

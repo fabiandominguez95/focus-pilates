@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../store';
-import { buildIndex, claseTerminada, recupRestante, sinCulpa, cambioHora } from '../logic';
+import { buildIndex, claseTerminada, recupRestante, sinCulpa, cambioHora, bloqAplica } from '../logic';
 import { Ring, Empty } from '../ui';
 import { ClassSheet, NewClassSheet, TIPO_LABEL, useClassOps, useWhats, useUndoAviso, useFeriadoSet, SlotPicker, useSlotCheck, motivoLabel } from '../classes';
 import { RenewSheet } from '../subs';
@@ -49,7 +49,7 @@ export default function Home({ openPersona }: { openPersona: (id: string) => voi
 
       <section>
         <div className="sec-head"><h2>Clases de hoy</h2><div className="row" style={{ gap: 6 }}><button className="btn ghost sm" onClick={() => setOfrecer(true)}>Ofrecer horarios</button><button className="btn sm" onClick={() => setNuevo(true)}>+ Agendar</button></div></div>
-        {d.bloqueos.filter((b: any) => b.fecha === hoy && b.tipo === 'bloqueo').map((b: any) => <div key={b.id} className="blk nod" style={{ marginBottom: 8 }}>⛔ {b.motivo || 'No disponible'} · {hm(b.hora_desde) <= '00:00' && hm(b.hora_hasta) >= '23:59' ? 'todo el día' : `${hm(b.hora_desde)} a ${hm(b.hora_hasta)}`}</div>)}
+        {d.bloqueos.filter((b: any) => bloqAplica(b, hoy) && b.tipo === 'bloqueo').map((b: any) => <div key={b.id} className="blk nod" style={{ marginBottom: 8 }}>⛔ {b.motivo || 'No disponible'} · {hm(b.hora_desde) <= '00:00' && hm(b.hora_hasta) >= '23:59' ? 'todo el día' : `${hm(b.hora_desde)} a ${hm(b.hora_hasta)}`}</div>)}
         {delDia.length === 0 && <div className="muted pad">No hay clases agendadas para hoy.</div>}
         <div className="list">
           {delDia.map((c: any) => {

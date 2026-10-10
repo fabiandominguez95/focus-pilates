@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useApp } from './store';
-import { buildIndex, horasDisponibles } from './logic';
+import { buildIndex, horasDisponibles, bloqAplica } from './logic';
 import { Sheet, Field } from './ui';
 import { addDays, diffDays, dowISO, gs, subFin, uid, fmtDateY, addMonths, hm, timeToMin } from './util';
 
@@ -34,7 +34,7 @@ export function filasClases(persona: any, sub: any, horarios: Slot[], d: any, ho
     const dow = dowISO(f);
     horarios.filter((h) => h.dia === dow).forEach((h) => {
       if (ocupadoDia.has(f)) return;
-      const bloq = d.bloqueos.some((b: any) => b.fecha === f && b.hora_desde && timeToMin(hm(b.hora_desde)) <= timeToMin(h.hora) && timeToMin(hm(b.hora_hasta)) > timeToMin(h.hora));
+      const bloq = d.bloqueos.some((b: any) => bloqAplica(b, f) && b.hora_desde && timeToMin(hm(b.hora_desde)) <= timeToMin(h.hora) && timeToMin(hm(b.hora_hasta)) > timeToMin(h.hora));
       if (bloq) { omitidas++; return; }
       out.push({ persona_id: persona.id, suscripcion_id: sub.id, fecha: f, hora: h.hora, tipo: 'regular', estado: 'agendada', profesora_id: profesoraId });
       ocupadoDia.add(f);

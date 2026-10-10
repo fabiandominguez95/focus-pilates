@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useApp } from './store';
-import { buildIndex, estadoPersona, sinCulpa, horasDisponibles } from './logic';
+import { buildIndex, estadoPersona, sinCulpa, horasDisponibles, bloqAplica } from './logic';
 import { Sheet, Field } from './ui';
 import { WaDot, useFeriadoSet, DEFAULT_TPL } from './classes';
 import { addDays, fmtDate, hm, timeToMin, DIAS, parseD } from './util';
@@ -104,7 +104,7 @@ export function OfrecerHorarios({ onClose }: { onClose: () => void }) {
     const conClase = new Set<string>(); let ocup = 0;
     d.clases.forEach((c: any) => { if (c.fecha !== f) return; conClase.add(c.persona_id); if (hm(c.hora) === h && (c.estado === 'agendada' || c.estado === 'asistio')) ocup++; });
     inscriptasFijas.forEach((p: any) => { if (conClase.has(p.id)) return; if ((idx.horByP.get(p.id) || []).some((x: any) => x.dia === dow && hm(x.hora) === h)) ocup++; });
-    const bloq = d.bloqueos.find((b: any) => b.fecha === f && b.hora_desde && timeToMin(hm(b.hora_desde)) < timeToMin(h) + 60 && timeToMin(hm(b.hora_hasta)) > timeToMin(h));
+    const bloq = d.bloqueos.find((b: any) => bloqAplica(b, f) && b.hora_desde && timeToMin(hm(b.hora_desde)) < timeToMin(h) + 60 && timeToMin(hm(b.hora_hasta)) > timeToMin(h));
     if (bloq || fer.has(f)) return 0;
     if (f === hoy && timeToMin(h) <= ahora) return 0;
     return Math.max(0, cfg.cupo - ocup);
