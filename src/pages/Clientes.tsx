@@ -80,7 +80,7 @@ export function PersonaSheet({ id, onClose }: { id: string; onClose: () => void 
   return (
     <Sheet title={p.nombre} onClose={onClose} wide>
       {node}
-      <div className="row between"><div><StageBadge e={e} /> {p.baneado && <span className="badge ban">⛔ Baneado/a</span>} {p.no_contactar && <span className="badge">No contactar</span>}<div className="muted small" style={{ marginTop: 4 }}>{phonePretty(p.celular) || 'Sin celular'}{tutor ? ` · Tutor: ${tutor.nombre}` : ''}{menores.length ? ` · Tutor de ${menores.map((m: any) => m.nombre.split(' ')[0]).join(', ')}` : ''}</div></div></div>
+      <div className="row between"><div><StageBadge e={e} /> {p.baneado && <span className="badge ban">⛔ Baneado/a</span>} {p.no_contactar && <span className="badge">No contactar</span>} {p.canal && <span className="badge">{({ anuncio_meta: 'Anuncio Meta', sin_anuncio: 'Sin anuncio', recomendacion: 'Recomendación', puerta: 'Pasó por el estudio', otro: 'Otro' } as any)[p.canal] || p.canal}</span>}{p.primer_contacto && <span className="muted small"> · 1er contacto {fmtDate(p.primer_contacto)}</span>}<div className="muted small" style={{ marginTop: 4 }}>{phonePretty(p.celular) || 'Sin celular'}{tutor ? ` · Tutor: ${tutor.nombre}` : ''}{menores.length ? ` · Tutor de ${menores.map((m: any) => m.nombre.split(' ')[0]).join(', ')}` : ''}</div></div></div>
       <div className="actions">
         {isAdmin && <button className="btn" onClick={() => setRenew(true)}>{subsMens.length ? 'Renovar' : 'Inscribir'}</button>}
         <button className="btn" onClick={() => setNuevaClase(true)}>Agendar clase</button>
@@ -149,6 +149,7 @@ function Horarios({ p, hor }: { p: any; hor: any[] }) {
 function EditPersona({ p, onDone }: { p: any; onDone: () => void }) {
   const { cfg, upd, toast } = useApp();
   const [nombre, setNombre] = useState(p.nombre); const [cel, setCel] = useState(p.celular || ''); const [notas, setNotas] = useState(p.notas || ''); const [tutor, setTutor] = useState(p.tutor_id || ''); const [pagador, setPagador] = useState(p.pagador_id || '');
+  const [canal, setCanal] = useState(p.canal || ''); const [pc, setPc] = useState(p.primer_contacto || '');
   const [sinPrueba, setSinPrueba] = useState(!!p.sin_prueba); const [noCont, setNoCont] = useState(!!p.no_contactar); const [pf, setPf] = useState(p.prueba_fecha || '');
   return (
     <div className="box stack">
@@ -156,11 +157,13 @@ function EditPersona({ p, onDone }: { p: any; onDone: () => void }) {
       <Field label="Celular"><input inputMode="tel" value={cel} onChange={(e) => setCel(e.target.value)} /></Field>
       <Field label="Tutor (si es menor)"><PersonaPicker value={tutor} onChange={setTutor} exclude={p.id} /></Field>
       <Field label="Paga otra persona (grupo / familia)"><PersonaPicker value={pagador} onChange={setPagador} exclude={p.id} /></Field>
+      <Field label="¿Cómo nos conoció?"><select value={canal} onChange={(e) => setCanal(e.target.value)}><option value="">Sin dato</option><option value="anuncio_meta">Anuncio (Meta)</option><option value="sin_anuncio">Sin anuncio / orgánico</option><option value="recomendacion">Recomendación</option><option value="puerta">Pasó por el estudio</option><option value="otro">Otro</option></select></Field>
+      <Field label="Primer contacto"><input type="date" value={pc} onChange={(e) => setPc(e.target.value)} /></Field>
       <Field label="Fecha de prueba"><input type="date" value={pf} onChange={(e) => setPf(e.target.value)} /></Field>
       <label className="check"><input type="checkbox" checked={sinPrueba} onChange={(e) => setSinPrueba(e.target.checked)} /> Excepción: no hizo clase de prueba</label>
       <label className="check"><input type="checkbox" checked={noCont} onChange={(e) => setNoCont(e.target.checked)} /> No contactar (no invitar a volver)</label>
       <Field label="Notas"><textarea rows={2} value={notas} onChange={(e) => setNotas(e.target.value)} /></Field>
-      <button className="btn" onClick={async () => { try { await upd('personas', p.id, { nombre: nombre.trim(), celular: normPhone(cel, cfg.pais_tel) || null, notas: notas || null, tutor_id: tutor || null, pagador_id: pagador || null, sin_prueba: sinPrueba, no_contactar: noCont, prueba_fecha: pf || null }); toast('Guardado'); onDone(); } catch (er: any) { toast('Error: ' + er.message); } }}>Guardar cambios</button>
+      <button className="btn" onClick={async () => { try { await upd('personas', p.id, { nombre: nombre.trim(), celular: normPhone(cel, cfg.pais_tel) || null, notas: notas || null, tutor_id: tutor || null, pagador_id: pagador || null, sin_prueba: sinPrueba, no_contactar: noCont, prueba_fecha: pf || null, canal: canal || null, primer_contacto: pc || null }); toast('Guardado'); onDone(); } catch (er: any) { toast('Error: ' + er.message); } }}>Guardar cambios</button>
     </div>
   );
 }

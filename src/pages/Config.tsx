@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../store';
-import { buildIndex } from '../logic';
+import { buildIndex, estadoPersona } from '../logic';
 import { Sheet, Field, Seg, useConfirm } from '../ui';
 import { adminFn, historial, changeOwnPassword, fetchAll } from '../api';
 import { buildXlsx, download } from '../xlsx';
@@ -10,7 +10,7 @@ import { allMonths } from '../fin';
 const SECS: [string, string, string][] = [
   ['general', 'General', 'Horario, cupo, plazos, umbrales de atraso'], ['planes', 'Planes', 'Precios y planes'], ['promos', 'Promos y grupos', 'Descuentos'], ['pagos', 'Métodos de pago', ''],
   ['profes', 'Instructores/as', 'Fijas y suplentes, salario base'], ['plantillas', 'Mensajes de WhatsApp', 'Plantillas editables'], ['usuarios', 'Usuarios', 'Nicks, roles, contraseñas'],
-  ['backup', 'Backup en Excel', 'Descargar por mes o completo'], ['historial', 'Historial de cambios', 'Quién cambió qué'], ['baneados', 'Clientes baneados', 'Excluidos para siempre; se pueden desbanear'], ['accesos', 'Accesos de alumnos/as', 'Quién vio su perfil y cuándo'], ['papelera', 'Papelera', 'Restaurar eliminados'],
+  ['backup', 'Backup en Excel', 'Descargar por mes o completo'], ['historial', 'Historial de cambios', 'Quién cambió qué'], ['baneados', 'Clientes baneados', 'Excluidos para siempre; se pueden desbanear'], ['audiencias', 'Audiencias para anuncios', 'CSV de celulares para excluir o reimpactar en Meta'], ['accesos', 'Accesos de alumnos/as', 'Quién vio su perfil y cuándo'], ['papelera', 'Papelera', 'Restaurar eliminados'],
 ];
 const DIRTY = { v: false };
 function useDirty(flag: boolean) { React.useEffect(() => { DIRTY.v = flag; return () => { DIRTY.v = false; }; }, [flag]); }
@@ -23,7 +23,7 @@ export default function Config({ sec = '' }: { sec?: string }) {
   const volver = async () => { if (DIRTY.v && !(await ask('Tenés cambios sin guardar. ¿Salir y descartarlos?'))) return; DIRTY.v = false; location.hash = 'config'; };
   if (sec && SECS.some((x) => x[0] === sec)) return <div className="page">{node}<header className="page-head"><button className="btn sm ghost" onClick={volver}>‹ Configuración</button><h1>{SECS.find((s) => s[0] === sec)?.[1]}</h1></header>
     {sec === 'general' && <General />}{sec === 'planes' && <Planes />}{sec === 'promos' && <Promos />}{sec === 'pagos' && <Metodos />}{sec === 'profes' && <Profes />}{sec === 'plantillas' && <Plantillas />}
-    {sec === 'usuarios' && <Usuarios />}{sec === 'backup' && <Backup />}{sec === 'historial' && <Historial />}{sec === 'accesos' && <Accesos />}{sec === 'baneados' && <Baneados />}{sec === 'papelera' && <Papelera />}</div>;
+    {sec === 'usuarios' && <Usuarios />}{sec === 'backup' && <Backup />}{sec === 'historial' && <Historial />}{sec === 'accesos' && <Accesos />}{sec === 'audiencias' && <Audiencias />}{sec === 'baneados' && <Baneados />}{sec === 'papelera' && <Papelera />}</div>;
   return (<div className="page"><header className="page-head"><h1>Configuración</h1></header><div className="list">{SECS.map(([k, t, s]) => <div className="row-card plain" key={k} onClick={() => { location.hash = 'config/' + k; }}><div className="grow"><b>{t}</b><div className="small muted">{s}</div></div><span className="chev">›</span></div>)}</div></div>);
 }
 
@@ -34,6 +34,20 @@ function Baneados() {
     {lista.length === 0 && <div className="muted pad">Nadie baneado/a.</div>}
     <div className="list">{lista.map((p: any) => <div className="row-card plain ban" key={p.id}><div className="grow"><b>{p.nombre}</b>{p.baneo_nota && <div className="small muted">{p.baneo_nota}</div>}</div>
       <button className="btn sm" onClick={async () => { if (await ask(`¿Desbanear a ${p.nombre}?`)) { try { await upd('personas', p.id, { baneado: false, baneo_nota: null }); toast('Desbaneado/a'); } catch (e: any) { toast('Error: ' + e.message); } } }}>Desbanear</button></div>)}</div></div>);
+}
+function Audiencias() {
+  const { d, cfg } = useApp(); const hoy = new Date().toISOString().slice(0, 10);
+  const idx = useMemo(() => buildIndex(d), [d]);
+  const rows = useMemo(() => d.personas.filter((p: any) => !p.deleted_at).map((p: any) => ({ p, e: estadoPersona(p, idx, cfg, hoy) })), [d, idx, cfg, hoy]);
+  const tel = (p: any) => String(p.celular || '').replace(/\D/g, '');
+  const grupos: [string, string, (r: any) => boolean][] = [
+    ['Ya convirtieron (excluir)', 'clientas-excluir', (r) => ['inscripta', 'no_renovo', 'unica', 'prueba'].includes(r.e.stage)],
+    ['Vinieron a prueba y no se inscribieron (reimpactar)', 'prueba-sin-inscripcion', (r) => r.e.stage === 'no_se_inscribio' && !r.p.baneado && !r.p.no_contactar],
+    ['Exalumnas que no renovaron (reimpactar)', 'ex-alumnas', (r) => r.e.stage === 'no_renovo' && !r.p.baneado && !r.p.no_contactar],
+  ];
+  const bajar = (nombre: string, f: (r: any) => boolean) => { const t = rows.filter(f).map((r: any) => tel(r.p)).filter((x: string) => x.length >= 8); const u = Array.from(new Set(t)); download(new Blob(['phone\n' + u.join('\n')], { type: 'text/csv' }), `audiencia-${nombre}.csv`); };
+  return (<div><div className="muted small pad">Archivos CSV con solo el celular, listos para subir a Meta como «público personalizado». Los datos no salen de acá.</div>
+    <div className="list">{grupos.map(([t, n, f]) => { const c = new Set(rows.filter(f).map((r: any) => tel(r.p)).filter((x: string) => x.length >= 8)).size; return <div className="row-card plain" key={n}><div className="grow"><b>{t}</b><div className="small muted">{c} celulares</div></div><button className="btn sm" onClick={() => bajar(n, f)}>Descargar</button></div>; })}</div></div>);
 }
 function useSave() { const { toast } = useApp(); return async (fn: () => Promise<any>, ok = 'Guardado') => { try { await fn(); toast(ok); } catch (e: any) { toast('Error: ' + e.message); } }; }
 
