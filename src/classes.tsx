@@ -152,12 +152,12 @@ export function useSlotCheck() {
   return { check, node };
 }
 
-export function ClassSheet({ c, onClose, onOpenPersona }: { c: any; onClose: () => void; onOpenPersona?: (id: string) => void }) {
+export function ClassSheet({ c, onClose, onOpenPersona, startMode = '' }: { c: any; onClose: () => void; onOpenPersona?: (id: string) => void; startMode?: '' | 'ausente' }) {
   const { d, cfg, hoy, isAdmin } = useApp();
   const idx = useMemo(() => buildIndex(d), [d]);
   const ops = useClassOps(); const wa = useWhats(); const { check, node } = useSlotCheck(); const fer = useFeriadoSet();
   const cur = idx.clasesById.get(c.id) || c; const p = idx.personaById.get(cur.persona_id);
-  const [mode, setMode] = useState<'' | 'ausente' | 'mover' | 'recuperar' | 'hora'>(''); const [inscribir, setInscribir] = useState(false);
+  const [mode, setMode] = useState<'' | 'ausente' | 'mover' | 'recuperar' | 'hora'>(startMode); const [inscribir, setInscribir] = useState(false);
   const [mot, setMot] = useState(fer.has(cur.fecha) ? 'feriado' : ''); const [nota, setNota] = useState('');
   const [f, setF] = useState(cur.fecha); const [h, setH] = useState(hm(cur.hora)); const [exc, setExc] = useState(false);
   React.useEffect(() => { if (!mot && fer.has(cur.fecha)) setMot('feriado'); }, [fer]);

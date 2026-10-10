@@ -15,7 +15,7 @@ export default function Home({ openPersona }: { openPersona: (id: string) => voi
   const { d, cfg, hoy } = useApp();
   const idx = useMemo(() => buildIndex(d), [d]);
   const fer = useFeriadoSet(); const ops = useClassOps(); const wa = useWhats(); const undoWa = useUndoAviso(); const { check, node } = useSlotCheck();
-  const [sel, setSel] = useState<any>(null); const [nuevo, setNuevo] = useState(false); const [nuevaP, setNuevaP] = useState(false); const [ofrecer, setOfrecer] = useState(false); const [renew, setRenew] = useState<any>(null);
+  const [sel, setSel] = useState<any>(null); const [selNo, setSelNo] = useState(false); const noSel = (c: any) => { setSelNo(true); setSel(c); }; const [nuevo, setNuevo] = useState(false); const [nuevaP, setNuevaP] = useState(false); const [ofrecer, setOfrecer] = useState(false); const [renew, setRenew] = useState<any>(null);
   const [more, setMore] = useState<Record<string, boolean>>({}); const lim = (k: string, a: any[]) => (more[k] ? a : a.slice(0, 5)); const MoreBtn = ({ k, n }: { k: string; n: number }) => (n > 5 ? <button className="btn ghost sm" style={{ marginTop: 8 }} onClick={() => setMore({ ...more, [k]: !more[k] })}>{more[k] ? 'Ver menos' : `Ver las ${n}`}</button> : null);
   const [fixing, setFixing] = useState<any>(null); const [fx, setFx] = useState({ f: hoy, h: '' });
 
@@ -60,7 +60,7 @@ export default function Home({ openPersona }: { openPersona: (id: string) => voi
                 <div className="time">{hm(c.hora)}</div>
                 <div className="grow"><b>{p?.nombre}</b><div className="small muted">{TIPO_LABEL[c.tipo]}{c.estado === 'ausente' ? ` · ausente · ${motivoLabel(c.motivo_ausencia)}` : ''}{c.fecha_original && c.fecha_original !== c.fecha ? ` · reagendada` : ''}{cambioHora(c) ? ` · ⇄ antes ${hm(c.hora_original)}` : ''}</div></div>
                 {c.estado === 'agendada' && <WaDot done={avisosSet.has('confirmacion|' + hoy + '|' + c.persona_id)} onUndo={() => undoWa(c.persona_id, 'confirmacion', hoy)} onClick={() => p && wa(p, 'confirmacion', { hora: hm(c.hora) }, { tipo: 'confirmacion', ref: hoy })} />}
-                {c.estado === 'asistio' ? <span className="tick">✓</span> : c.estado === 'agendada' && fin ? <button className="btn sm ok" onClick={(e) => { e.stopPropagation(); sePudo(c); }}>Se dio</button> : <span className="chev">›</span>}
+                {c.estado === 'asistio' ? <span className="tick">✓</span> : c.estado === 'agendada' ? <div className="okno">{fin && <button className="si" aria-label="Se dio" title="Se dio" onClick={(e) => { e.stopPropagation(); sePudo(c); }}>✓</button>}<button className="no" aria-label="No se dio" title="No se dio" onClick={(e) => { e.stopPropagation(); noSel(c); }}>✕</button></div> : <span className="chev">›</span>}
               </div>
             );
           })}
@@ -73,7 +73,7 @@ export default function Home({ openPersona }: { openPersona: (id: string) => voi
           <div className="list">{porCerrar.slice(0, 12).map((c: any) => (
             <div key={c.id} className={'row-card t-' + c.tipo} onClick={() => setSel(c)}>
               <div className="time sm">{fmtDate(c.fecha)}<br />{hm(c.hora)}</div><div className="grow"><b>{idx.personaById.get(c.persona_id)?.nombre}</b></div>
-              <button className="btn sm ok" onClick={(e) => { e.stopPropagation(); sePudo(c); }}>Se dio</button></div>))}
+              <div className="okno"><button className="si" aria-label="Se dio" title="Se dio" onClick={(e) => { e.stopPropagation(); sePudo(c); }}>✓</button><button className="no" aria-label="No se dio" title="No se dio" onClick={(e) => { e.stopPropagation(); noSel(c); }}>✕</button></div></div>))}
             {porCerrar.length > 12 && <div className="muted small pad">y {porCerrar.length - 12} más…</div>}</div></section>
       )}
 
@@ -124,7 +124,7 @@ export default function Home({ openPersona }: { openPersona: (id: string) => voi
 
       {sinTareas && <Empty>Todo al día. No queda nada pendiente.</Empty>}
 
-      {sel && <ClassSheet c={sel} onClose={() => setSel(null)} onOpenPersona={openPersona} />}
+      {sel && <ClassSheet key={sel.id + selNo} c={sel} startMode={selNo ? 'ausente' : ''} onClose={() => { setSel(null); setSelNo(false); }} onOpenPersona={openPersona} />}
       {nuevo && <NewClassSheet onClose={() => setNuevo(false)} onNuevo={() => { setNuevo(false); setNuevaP(true); }} />}
       {nuevaP && <NuevaPersona onClose={() => setNuevaP(false)} onCreated={(id) => { setNuevaP(false); openPersona(id); }} />}
       {inscr && <Sheet title={'¿Se inscribió ' + inscr.nombre.split(' ')[0] + '?'} onClose={() => setInscr(null)}><div className="stack"><div className="muted">Elegí plan, días y horarios para dejarlo/a inscripto/a.</div><button className="btn big" onClick={() => { setRenew(inscr); setInscr(null); }}>Sí, inscribir</button><button className="btn ghost" onClick={() => setInscr(null)}>Todavía no</button></div></Sheet>}

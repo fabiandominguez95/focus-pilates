@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../store';
 import { buildIndex, slotKey, sinCulpa, cambioHora, bloqAplica } from '../logic';
-import { Seg } from '../ui';
+import { Seg, SearchInput } from '../ui';
 import { NuevaPersona } from '../nueva';
 import { ClassSheet, NewClassSheet, TIPO_LABEL, horasDisponibles, motivoLabel, QuienesSheet, useLongPress, useClassOps, useSlotCheck } from '../classes';
 import { OfrecerHorarios } from '../pruebas';
@@ -60,7 +60,7 @@ export default function Agenda({ openPersona }: { openPersona: (id: string) => v
         <div className="row2"><select value={tipo} onChange={(e) => setTipo(e.target.value)}><option value="">Todo tipo</option>{Object.entries(TIPO_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
           <select value={estado} onChange={(e) => setEstado(e.target.value)}><option value="">Todo estado</option><option value="agendada">Agendada</option><option value="asistio">Asistió</option><option value="ausente">Ausente</option><option value="no_dada">No dada</option></select></div>
         <div className="row2"><select value={profe} onChange={(e) => setProfe(e.target.value)}><option value="">Todo instructor/a</option>{d.profesoras.map((p: any) => <option key={p.id} value={p.id}>{p.nombre}</option>)}</select>
-          <input placeholder="Persona…" value={q} onChange={(e) => setQ(e.target.value)} /></div></div>}
+          <SearchInput placeholder="Persona…" value={q} onChange={setQ} /></div></div>}
 
       {vista === 'dia' && (
         <div className="day">

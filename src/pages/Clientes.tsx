@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../store';
 import { buildIndex, estadoPersona, personaStats, squaresForSub, STAGE_LABEL, COLOR_NAME, matchPersona, clasesDeHorario, Square } from '../logic';
-import { Sheet, Field, Chips, useConfirm } from '../ui';
+import { Sheet, Field, Chips, useConfirm, SearchInput } from '../ui';
 import { ClassSheet, NewClassSheet, SlotPicker, useClassOps, useSlotCheck, useWhats, TIPO_LABEL, motivoLabel } from '../classes';
 import { RenewSheet, PagoSheet, grupoDe } from '../subs';
 import { diffDays, fmtDate, fmtDateY, gs, hm, normPhone, phonePretty, DIAS3, fmtLong } from '../util';
@@ -32,7 +32,7 @@ export default function Clientes({ openPersona }: { openPersona: (id: string) =>
   return (
     <div className="page">
       <header className="page-head"><h1>Clientes</h1>{isAdmin && <button className="btn sm" onClick={() => setNueva(true)}>+ Nuevo cliente</button>}</header>
-      <input className="search" placeholder="Buscar por nombre, celular o nota…" value={q} onChange={(e) => setQ(e.target.value)} />
+      <SearchInput className="search" placeholder="Buscar por nombre, celular o nota…" value={q} onChange={setQ} />
       <div className="chips scroll">{F('todas', 'Todos')}{F('inscripta', 'Inscriptos/as')}{F('prueba', 'Prueba')}{F('atraso', 'Con atraso')}{F('no_renovo', 'No renovó')}{F('no_se_inscribio', 'No se inscribió')}</div>
       <div className="row2"><select value={orden} onChange={(e) => setOrden(e.target.value)}><option value="nombre">Orden: nombre</option><option value="antiguas">Más antiguos/as</option><option value="nuevas">Más nuevos/as</option><option value="atraso">Más atraso</option>{isAdmin && <><option value="ticket">Mayor ticket</option><option value="pagado">Más pagó</option></>}<option value="asistencias">Más asistencias</option></select>
         <select value={plan} onChange={(e) => setPlan(e.target.value)}><option value="">Todo plan</option>{d.planes.map((p: any) => <option key={p.id} value={p.id}>{p.nombre}</option>)}</select></div>

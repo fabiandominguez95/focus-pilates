@@ -140,3 +140,6 @@ html,body{overscroll-behavior-y:contain}
 @media (prefers-color-scheme:dark){.blk.nod{background:repeating-linear-gradient(45deg,#5a4318,#5a4318 6px,#3d2e10 6px,#3d2e10 12px);color:#f1d79c}}
 .chip.nod{background:repeating-linear-gradient(45deg,#f4d9a8,#f4d9a8 6px,#fbeccb 6px,#fbeccb 12px);color:#7a5200;border-color:#e3b865;cursor:default}
 @media (prefers-color-scheme:dark){.chip.nod{background:repeating-linear-gradient(45deg,#5a4318,#5a4318 6px,#3d2e10 6px,#3d2e10 12px);color:#f1d79c;border-color:#7a5a1f}}
+.sbox{position:relative;display:block}.sbox input{width:100%;padding-right:38px}.sclear{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:28px;height:28px;border-radius:50%;border:0;background:var(--line);color:var(--ink);font-size:18px;line-height:1;display:grid;place-items:center;padding:0}
+.sbox.search{margin-bottom:6px}
+.okno{display:flex;gap:6px;flex:none}.okno button{width:38px;height:38px;border-radius:50%;border:1.5px solid var(--line);background:var(--surface);font-size:18px;font-weight:700;line-height:1;display:grid;place-items:center;padding:0}.okno .si{color:var(--sage-d);border-color:var(--sage)}.okno .no{color:var(--neg);border-color:var(--neg)}

@@ -83,3 +83,7 @@ export function LineChart({ labels, series, height = 160, colors = ['var(--sage)
 export function Legend({ items, colors = ['var(--sage)', 'var(--sand)', 'var(--sky)'] }: { items: string[]; colors?: string[] }) {
   return <div className="legend">{items.map((t, i) => <span key={t}><i style={{ background: colors[i % colors.length] }} />{t}</span>)}</div>;
 }
+
+export function SearchInput({ value, onChange, placeholder, className = '' }: { value: string; onChange: (v: string) => void; placeholder?: string; className?: string }) {
+  return (<div className={'sbox ' + className}><input value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />{value && <button type="button" className="sclear" aria-label="Borrar búsqueda" onClick={() => onChange('')}>×</button>}</div>);
+}

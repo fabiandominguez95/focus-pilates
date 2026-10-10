@@ -18,7 +18,7 @@ export function PersonaPicker({ value, onChange, exclude, placeholder = 'Buscar 
     </div>);
   return (
     <div>
-      <input placeholder={placeholder} value={q} autoFocus={autoFocus} onChange={(e) => setQ(e.target.value)} />
+      <div className="sbox"><input placeholder={placeholder} value={q} autoFocus={autoFocus} onChange={(e) => setQ(e.target.value)} />{q && <button type="button" className="sclear" aria-label="Borrar" onClick={() => setQ('')}>×</button>}</div>
       {q && (list.length > 0 || (allowCreate && isAdmin && !exact)) && (
         <div className="pick">
           {list.map((p: any) => <button type="button" key={p.id} onClick={() => { onChange(p.id); setQ(''); }}>{p.nombre}{p.celular ? <small className="muted"> · {normPhone(p.celular, cfg.pais_tel).slice(-4).padStart(7, '·')}</small> : null}</button>)}
