@@ -53,6 +53,11 @@ export function useUndoAviso() {
   };
 }
 export const DEFAULT_TPL: Record<string, string> = {
+  prueba_post1: 'Hola {nombre}! ¿Cómo te fue en tu clase de prueba del {fecha}? Nos encantaría saber qué te pareció y ayudarte a elegir tu plan 💛',
+  prueba_post2: 'Hola {nombre}! Te escribimos de Focus Pilates: todavía tenemos lugares disponibles para que arranques. ¿Querés que te reservemos un horario? 🤍',
+  prueba_reag1: 'Hola {nombre}! Ayer te esperamos en tu clase de prueba y no pudiste venir. ¿Querés que la reagendemos para otro día? Contanos qué horario te queda cómodo 🙌',
+  prueba_reag2: 'Hola {nombre}! Seguimos con un lugar para tu clase de prueba cuando quieras. ¿Te guardamos un horario esta semana? 😊',
+  ofrecer_horarios: 'Hola! Tenemos lugar{personas} en estos horarios: {horarios}. ¿Cuál te queda mejor?',
   prueba_previa: 'Hola {nombre}! Te recordamos que mañana {fecha} a las {hora} tenés tu clase de prueba en Focus Pilates 💛 ¿Nos confirmás que venís? Cualquier cambio avisanos.',
   prueba_hoy: 'Hola {nombre}! Hoy a las {hora} te esperamos para tu clase de prueba en Focus Pilates 🙌 Recordá venir con ropa cómoda. ¿Nos confirmás?',
 };

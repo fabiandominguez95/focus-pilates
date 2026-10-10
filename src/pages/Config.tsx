@@ -7,11 +7,12 @@ import { buildXlsx, download } from '../xlsx';
 import { fmtDate, gs, hm, monthLabel } from '../util';
 import { allMonths } from '../fin';
 import { DEFAULT_TPL } from '../classes';
+import { paCfg } from '../pruebas';
 
 const SECS: [string, string, string][] = [
   ['general', 'General', 'Horario, cupo, plazos, umbrales de atraso'], ['planes', 'Planes', 'Precios y planes'], ['promos', 'Promos y grupos', 'Descuentos'], ['pagos', 'Métodos de pago', ''],
   ['profes', 'Instructores/as', 'Fijas y suplentes, salario base'], ['plantillas', 'Mensajes de WhatsApp', 'Plantillas editables'], ['usuarios', 'Usuarios', 'Nicks, roles, contraseñas'],
-  ['backup', 'Backup en Excel', 'Descargar por mes o completo'], ['historial', 'Historial de cambios', 'Quién cambió qué'], ['baneados', 'Clientes baneados', 'Excluidos para siempre; se pueden desbanear'], ['audiencias', 'Audiencias para anuncios', 'CSV de celulares para excluir o reimpactar en Meta'], ['accesos', 'Accesos de alumnos/as', 'Quién vio su perfil y cuándo'], ['papelera', 'Papelera', 'Restaurar eliminados'],
+  ['backup', 'Backup en Excel', 'Descargar por mes o completo'], ['historial', 'Historial de cambios', 'Quién cambió qué'], ['baneados', 'Clientes baneados', 'Excluidos para siempre; se pueden desbanear'], ['avisos_pruebas', 'Avisos y seguimiento de pruebas', 'Horarios y días de los recordatorios'], ['audiencias', 'Audiencias para anuncios', 'CSV de celulares para excluir o reimpactar en Meta'], ['accesos', 'Accesos de alumnos/as', 'Quién vio su perfil y cuándo'], ['papelera', 'Papelera', 'Restaurar eliminados'],
 ];
 const DIRTY = { v: false };
 function useDirty(flag: boolean) { React.useEffect(() => { DIRTY.v = flag; return () => { DIRTY.v = false; }; }, [flag]); }
@@ -24,7 +25,7 @@ export default function Config({ sec = '' }: { sec?: string }) {
   const volver = async () => { if (DIRTY.v && !(await ask('Tenés cambios sin guardar. ¿Salir y descartarlos?'))) return; DIRTY.v = false; location.hash = 'config'; };
   if (sec && SECS.some((x) => x[0] === sec)) return <div className="page">{node}<header className="page-head"><button className="btn sm ghost" onClick={volver}>‹ Configuración</button><h1>{SECS.find((s) => s[0] === sec)?.[1]}</h1></header>
     {sec === 'general' && <General />}{sec === 'planes' && <Planes />}{sec === 'promos' && <Promos />}{sec === 'pagos' && <Metodos />}{sec === 'profes' && <Profes />}{sec === 'plantillas' && <Plantillas />}
-    {sec === 'usuarios' && <Usuarios />}{sec === 'backup' && <Backup />}{sec === 'historial' && <Historial />}{sec === 'accesos' && <Accesos />}{sec === 'audiencias' && <Audiencias />}{sec === 'baneados' && <Baneados />}{sec === 'papelera' && <Papelera />}</div>;
+    {sec === 'usuarios' && <Usuarios />}{sec === 'backup' && <Backup />}{sec === 'historial' && <Historial />}{sec === 'accesos' && <Accesos />}{sec === 'audiencias' && <Audiencias />}{sec === 'avisos_pruebas' && <AvisosPruebas />}{sec === 'baneados' && <Baneados />}{sec === 'papelera' && <Papelera />}</div>;
   return (<div className="page"><header className="page-head"><h1>Configuración</h1></header><div className="list">{SECS.map(([k, t, s]) => <div className="row-card plain" key={k} onClick={() => { location.hash = 'config/' + k; }}><div className="grow"><b>{t}</b><div className="small muted">{s}</div></div><span className="chev">›</span></div>)}</div></div>);
 }
 
@@ -49,6 +50,22 @@ function Audiencias() {
   const bajar = (nombre: string, f: (r: any) => boolean) => { const t = rows.filter(f).map((r: any) => tel(r.p)).filter((x: string) => x.length >= 8); const u = Array.from(new Set(t)); download(new Blob(['phone\n' + u.join('\n')], { type: 'text/csv' }), `audiencia-${nombre}.csv`); };
   return (<div><div className="muted small pad">Archivos CSV con solo el celular, listos para subir a Meta como «público personalizado». Los datos no salen de acá.</div>
     <div className="list">{grupos.map(([t, n, f]) => { const c = new Set(rows.filter(f).map((r: any) => tel(r.p)).filter((x: string) => x.length >= 8)).size; return <div className="row-card plain" key={n}><div className="grow"><b>{t}</b><div className="small muted">{c} celulares</div></div><button className="btn sm" onClick={() => bajar(n, f)}>Descargar</button></div>; })}</div></div>);
+}
+function AvisosPruebas() {
+  const { cfg, setCfg } = useApp(); const save = useSave(); const { ask, node } = useConfirm();
+  const [v, setV] = useState<any>(() => ({ ...paCfg(cfg) })); const init = React.useRef(JSON.stringify(v)); const dirty = JSON.stringify(v) !== init.current; useDirty(dirty);
+  const set = (k: string, x: any) => setV({ ...v, [k]: x });
+  const num = (k: string) => <input inputMode="numeric" value={v[k]} onChange={(e) => set(k, e.target.value.replace(/\D/g, ''))} />;
+  const chk = (k: string, l: string) => <label className="check"><input type="checkbox" checked={!!v[k]} onChange={(e) => set(k, e.target.checked)} /> {l}</label>;
+  return (<div className="stack">{node}
+    <div className="muted small">Se aplican a las pruebas desde la fecha indicada. Los mensajes se editan en «Mensajes de WhatsApp».</div>
+    <Field label="Aplicar a pruebas desde"><input type="date" value={v.desde} onChange={(e) => set('desde', e.target.value)} /></Field>
+    <Field label="Aviso del día anterior: hora máxima para escribir" hint="Después de esa hora queda como «sin hacer»"><input type="time" value={v.previo_hasta} onChange={(e) => set('previo_hasta', e.target.value)} /></Field>
+    <div className="box stack"><b>Después de la prueba (si vino)</b>{chk('post_on', 'Seguimiento para que se inscriba')}
+      <Field label="Primer mensaje: días después de la prueba">{num('post1')}</Field>{chk('post2_on', 'Segundo mensaje')}<Field label="Segundo mensaje: días después de la prueba">{num('post2')}</Field></div>
+    <div className="box stack"><b>Si no vino a la prueba</b>{chk('reag_on', 'Intentar reagendar')}
+      <Field label="Primer intento: días después">{num('reag1')}</Field>{chk('reag2_on', 'Segundo intento')}<Field label="Segundo intento: días después">{num('reag2')}</Field></div>
+    <Acciones dirty={dirty} onSave={async () => { if (await ask('¿Guardar estos tiempos de avisos?')) { await save(() => setCfg('pruebas_avisos', { ...v, post1: Number(v.post1) || 1, post2: Number(v.post2) || 3, reag1: Number(v.reag1) || 1, reag2: Number(v.reag2) || 3 })); init.current = JSON.stringify(v); setV({ ...v }); } }} onDiscard={() => setV(JSON.parse(init.current))} /></div>);
 }
 function useSave() { const { toast } = useApp(); return async (fn: () => Promise<any>, ok = 'Guardado') => { try { await fn(); toast(ok); } catch (e: any) { toast('Error: ' + e.message); } }; }
 
@@ -154,7 +171,7 @@ function ProfeRow({ p }: { p: any }) { const { upd } = useApp(); const save = us
     {tipo === 'fija' && <Field label="Salario base mensual (Gs)"><input inputMode="numeric" value={Number(b).toLocaleString('es-PY')} onChange={(e) => setB(e.target.value.replace(/\D/g, '') || '0')} /></Field>}
     <Acciones dirty={dirty} onSave={async () => { if (await ask(`¿Guardar los cambios de ${p.nombre}? Salario base: ${gs(b)}.`)) save(() => upd('profesoras', p.id, { salario_base: Number(b), tipo, activa: act })); }} onDiscard={() => { setB(String(Math.round(p.salario_base || 0))); setTipo(p.tipo); setAct(p.activa !== false); }} /></div>); }
 
-const TPL: [string, string, string][] = [['prueba_previa', 'Prueba: aviso del día anterior', '{nombre} {fecha} {hora}'], ['prueba_hoy', 'Prueba: aviso de la mañana', '{nombre} {hora}'], ['confirmacion', 'Confirmar clase de hoy', '{nombre} {hora}'], ['renovacion', 'Aviso de renovación', '{nombre} {vence} {plan}'], ['atraso', 'Suscripción vencida / atraso', '{nombre} {vence} {plan}'], ['invitacion_prueba', 'Invitar: hizo prueba y no siguió', '{nombre}'], ['invitacion_inactiva', 'Invitar: dejó de venir', '{nombre}']];
+const TPL: [string, string, string][] = [['prueba_post1', 'Prueba: seguimiento después de la clase', '{nombre} {fecha}'], ['prueba_post2', 'Prueba: segundo seguimiento', '{nombre} {fecha}'], ['prueba_reag1', 'Prueba: no vino, reagendar', '{nombre} {fecha}'], ['prueba_reag2', 'Prueba: no vino, segundo intento', '{nombre} {fecha}'], ['ofrecer_horarios', 'Ofrecer horarios (consulta nueva)', '{horarios} {personas}'], ['prueba_previa', 'Prueba: aviso del día anterior', '{nombre} {fecha} {hora}'], ['prueba_hoy', 'Prueba: aviso de la mañana', '{nombre} {hora}'], ['confirmacion', 'Confirmar clase de hoy', '{nombre} {hora}'], ['renovacion', 'Aviso de renovación', '{nombre} {vence} {plan}'], ['atraso', 'Suscripción vencida / atraso', '{nombre} {vence} {plan}'], ['invitacion_prueba', 'Invitar: hizo prueba y no siguió', '{nombre}'], ['invitacion_inactiva', 'Invitar: dejó de venir', '{nombre}']];
 function Plantillas() {
   const { cfg, setCfg } = useApp(); const save = useSave(); const { ask, node } = useConfirm(); const init = React.useRef(JSON.stringify(cfg.plantillas)); const [t, setT] = useState<any>({ ...cfg.plantillas });
   const dirty = JSON.stringify(t) !== init.current; useDirty(dirty);

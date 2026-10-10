@@ -8,13 +8,14 @@ import { NuevaPersona } from '../nueva';
 import { useSeguimiento } from './Seguimiento';
 import { Sheet } from '../ui';
 import { WaDot } from '../classes';
+import { usePruebasTareas, useTareaOps, TareaRow, OfrecerHorarios } from '../pruebas';
 import { addDays, diffDays, fmtDate, fmtLong, hm, timeToMin } from '../util';
 
 export default function Home({ openPersona }: { openPersona: (id: string) => void }) {
   const { d, cfg, hoy } = useApp();
   const idx = useMemo(() => buildIndex(d), [d]);
   const fer = useFeriadoSet(); const ops = useClassOps(); const wa = useWhats(); const undoWa = useUndoAviso(); const { check, node } = useSlotCheck();
-  const [sel, setSel] = useState<any>(null); const [nuevo, setNuevo] = useState(false); const [nuevaP, setNuevaP] = useState(false); const [renew, setRenew] = useState<any>(null);
+  const [sel, setSel] = useState<any>(null); const [nuevo, setNuevo] = useState(false); const [nuevaP, setNuevaP] = useState(false); const [ofrecer, setOfrecer] = useState(false); const [renew, setRenew] = useState<any>(null);
   const [more, setMore] = useState<Record<string, boolean>>({}); const lim = (k: string, a: any[]) => (more[k] ? a : a.slice(0, 5)); const MoreBtn = ({ k, n }: { k: string; n: number }) => (n > 5 ? <button className="btn ghost sm" style={{ marginTop: 8 }} onClick={() => setMore({ ...more, [k]: !more[k] })}>{more[k] ? 'Ver menos' : `Ver las ${n}`}</button> : null);
   const [fixing, setFixing] = useState<any>(null); const [fx, setFx] = useState({ f: hoy, h: '' });
 
@@ -29,36 +30,25 @@ export default function Home({ openPersona }: { openPersona: (id: string) => voi
   const enFeriado = d.clases.filter((c: any) => c.estado === 'agendada' && c.fecha >= hoy && fer.has(c.fecha)).sort((a: any, b: any) => (a.fecha + a.hora).localeCompare(b.fecha + b.hora));
   const pasarFeriados = async () => { for (const c of enFeriado) await ops.ausente(c, 'feriado'); };
 
-  const ahora = (() => { const n = new Date(); return n.getHours() * 60 + n.getMinutes(); })();
-  const avisoPruebas = useMemo(() => {
-    const out: any[] = [];
-    d.clases.filter((c: any) => c.tipo === 'prueba' && c.estado === 'agendada').forEach((c: any) => {
-      const p = idx.personaById.get(c.persona_id); if (!p) return;
-      const previoOk = c.fecha === addDays(hoy, 1) && ahora < 21 * 60;
-      const hoyOk = c.fecha === hoy && ahora < timeToMin(c.hora);
-      if (previoOk) out.push({ c, p, k: 'previo', key: 'prueba_previa|' + c.fecha + '|' + c.persona_id });
-      if (hoyOk) out.push({ c, p, k: 'hoy', key: 'confirmacion|' + hoy + '|' + c.persona_id, faltoPrevio: !d.avisos.some((a: any) => a.tipo === 'prueba_previa' && a.ref === c.fecha && a.persona_id === c.persona_id) });
-    });
-    return out.sort((a, b) => (a.c.fecha + a.c.hora).localeCompare(b.c.fecha + b.c.hora));
-  }, [d.clases, d.avisos, idx, hoy, ahora]);
+  const tareas = usePruebasTareas(); const tops = useTareaOps();
   const avisosSet = useMemo(() => { const s = new Set<string>(); d.avisos.forEach((a: any) => s.add(a.tipo + '|' + a.ref + '|' + a.persona_id)); return s; }, [d.avisos]);
   const sg = useSeguimiento();
   const [inscr, setInscr] = useState<any>(null);
   const sePudo = async (c: any) => { const ok = await ops.asistio(c); if (ok && c.tipo === 'prueba') { const p = idx.personaById.get(c.persona_id); const ya = (idx.subsByP.get(c.persona_id) || []).some((s: any) => s.tipo !== 'unica'); if (p && !ya) setInscr(p); } };
-  const avisosPend = avisoPruebas.filter((a: any) => !avisosSet.has(a.key)).length;
+  const avisosPend = tareas.filter((t) => !avisosSet.has(t.logTipo + '|' + t.logRef + '|' + t.p.id)).length;
   const sinTareas = !avisosPend && !sg.pendientes && !porCerrar.length && !aConfirmar.length && !enFeriado.length && dadas === totalDia;
   const diaListo = sinTareas && totalDia > 0;
 
   return (
     <div className="page">
-      {node}
+      {node}{ofrecer && <OfrecerHorarios onClose={() => setOfrecer(false)} />}
       <header className={'home-head' + (diaListo ? ' alldone' : '')}>
         <div><div className="eyebrow">{diaListo ? '✓ Todo al día' : 'Hoy'}</div><h1>{fmtLong(hoy)}</h1><div className="muted">{diaListo ? 'Día superado: clases y seguimiento al día' : totalDia ? `${dadas} de ${totalDia} clases dadas` : 'Sin clases hoy'}</div></div>
         <Ring done={dadas} total={totalDia} />
       </header>
 
       <section>
-        <div className="sec-head"><h2>Clases de hoy</h2><button className="btn sm" onClick={() => setNuevo(true)}>+ Agendar</button></div>
+        <div className="sec-head"><h2>Clases de hoy</h2><div className="row" style={{ gap: 6 }}><button className="btn ghost sm" onClick={() => setOfrecer(true)}>Ofrecer horarios</button><button className="btn sm" onClick={() => setNuevo(true)}>+ Agendar</button></div></div>
         {delDia.length === 0 && <div className="muted pad">No hay clases agendadas para hoy.</div>}
         <div className="list">
           {delDia.map((c: any) => {
@@ -86,14 +76,12 @@ export default function Home({ openPersona }: { openPersona: (id: string) => voi
             {porCerrar.length > 12 && <div className="muted small pad">y {porCerrar.length - 12} más…</div>}</div></section>
       )}
 
-      {avisoPruebas.length > 0 && (
-        <section><div className="sec-head"><h2>Avisar a pruebas</h2><span className="count">{avisosPend}</span></div>
-          <div className="muted small pad">Recordatorio por WhatsApp a quienes tienen clase de prueba: el día anterior (hasta las 21:00) y en la mañana, antes de la clase. Si se pasa el horario, la tarea desaparece sola.</div>
-          <div className="list">{avisoPruebas.map((a: any) => { const done = avisosSet.has(a.key); const tipo = a.k === 'previo' ? 'prueba_previa' : 'prueba_hoy'; const log = a.k === 'previo' ? { tipo: 'prueba_previa', ref: a.c.fecha } : { tipo: 'confirmacion', ref: hoy };
-            return (<div key={a.key} className={'row-card plain check' + (done ? ' done' : '')} onClick={() => setSel(a.c)}>
-              <span className={'chk' + (done ? ' on' : '')}>{done ? '✓' : ''}</span>
-              <div className="grow"><b>{a.p.nombre}</b><div className="small muted">{a.k === 'previo' ? `Aviso previo · mañana ${hm(a.c.hora)}` : `Aviso de hoy · ${hm(a.c.hora)}`}{a.faltoPrevio ? ' · no se avisó ayer' : ''}</div></div>
-              <WaDot done={done} onUndo={() => undoWa(a.c.persona_id, log.tipo, log.ref)} onClick={() => wa(a.p, tipo, { hora: hm(a.c.hora), fecha: fmtDate(a.c.fecha) }, log)} /></div>); })}</div></section>
+      {tareas.length > 0 && (
+        <section><div className="sec-head"><h2>Pruebas: avisos y seguimiento</h2><span className="count">{avisosPend}</span></div>
+          <div className="muted small pad">Aviso el día anterior y en la mañana, y seguimiento después de la prueba (o para reagendar si no vino). Si se pasa el horario queda «sin hacer» hasta que lo anotes.</div>
+          <div className="list">{[...tareas.filter((t) => !t.vencida), ...tareas.filter((t) => t.vencida)].map((t) => { const done = avisosSet.has(t.logTipo + '|' + t.logRef + '|' + t.p.id);
+            return <TareaRow key={t.key} t={t} done={done} onOpen={() => setSel(t.c)} onMarcar={() => tops.marcar(t)} onCerrar={() => tops.cerrar(t)} onUndo={() => undoWa(t.p.id, t.logTipo, t.logRef)}
+              onWa={() => wa(t.p, t.tpl, { hora: hm(t.c.hora), fecha: fmtDate(t.c.fecha) }, { tipo: t.logTipo, ref: t.logRef })} />; })}</div></section>
       )}
 
       <section><div className="sec-head"><h2>Seguimiento</h2></div>

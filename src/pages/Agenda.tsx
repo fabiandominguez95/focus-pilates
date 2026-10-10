@@ -4,12 +4,13 @@ import { buildIndex, slotKey, sinCulpa, cambioHora } from '../logic';
 import { Seg } from '../ui';
 import { NuevaPersona } from '../nueva';
 import { ClassSheet, NewClassSheet, TIPO_LABEL, horasDisponibles, motivoLabel, QuienesSheet, useLongPress, useClassOps, useSlotCheck } from '../classes';
+import { OfrecerHorarios } from '../pruebas';
 import { addDays, DIAS3, dowISO, fmtDate, fmtLong, hm, monthLabel, parseD, ymd, addMonthKey, normStr } from '../util';
 
 export default function Agenda({ openPersona }: { openPersona: (id: string) => void }) {
   const { d, cfg, hoy } = useApp();
   const idx = useMemo(() => buildIndex(d), [d]);
-  const [fecha, setFecha] = useState(hoy); const [vista, setVista] = useState<'dia' | 'semana' | 'lista'>('dia');
+  const [ofrecer, setOfrecer] = useState(false); const [fecha, setFecha] = useState(hoy); const [vista, setVista] = useState<'dia' | 'semana' | 'lista'>('dia');
   const [quick, setQuick] = useState('todo'); const [tipo, setTipo] = useState(''); const [estado, setEstado] = useState(''); const [profe, setProfe] = useState(''); const [q, setQ] = useState('');
   const ops = useClassOps(); const { check, node: slotNode } = useSlotCheck(); const [full, setFull] = useState(false); const [dragId, setDragId] = useState<string | null>(null); const [over, setOver] = useState<string | null>(null);
   const [who, setWho] = useState<string | null>(null); const [more, setMore] = useState(false); const [sel, setSel] = useState<any>(null); const [nuevo, setNuevo] = useState<any>(null); const [nuevaP, setNuevaP] = useState(false);
@@ -46,7 +47,7 @@ export default function Agenda({ openPersona }: { openPersona: (id: string) => v
 
   return (
     <div className="page">
-      <header className="page-head"><h1>Agenda</h1><button className="btn sm" onClick={() => setNuevo({ f: fecha })}>+ Agendar</button></header>
+      <header className="page-head"><h1>Agenda</h1><div className="row" style={{ gap: 6 }}><button className="btn ghost sm" onClick={() => setOfrecer(true)}>Ofrecer horarios</button><button className="btn sm" onClick={() => setNuevo({ f: fecha })}>+ Agendar</button></div></header>{ofrecer && <OfrecerHorarios onClose={() => setOfrecer(false)} />}
       <Seg value={vista} onChange={setVista} options={[['dia', 'Día'], ['semana', 'Semana'], ['lista', 'Mes']]} />
       <div className="datebar">
         {vista === 'lista' ? <button onClick={() => setFecha(addMonthKey(mes, -1) + '-01')}>‹</button> : <button onClick={() => mover(-1)}>‹</button>}

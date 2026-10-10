@@ -134,3 +134,5 @@ section{margin-top:22px}.sec-head{display:flex;align-items:center;justify-conten
 html,body{overscroll-behavior-y:contain}
 .ptr{position:fixed;top:env(safe-area-inset-top);left:50%;z-index:200;width:40px;height:40px;border-radius:50%;background:var(--surface);box-shadow:var(--shadow);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:var(--sage-d);font-size:20px;pointer-events:none}
 .ptr .spin{display:inline-block;animation:ptrspin .8s linear infinite}@keyframes ptrspin{to{transform:rotate(360deg)}}
+
+.row-card.late{border-left:3px solid var(--neg)}.row-card.late .muted{color:var(--neg)}
