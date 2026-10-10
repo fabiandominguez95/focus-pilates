@@ -138,3 +138,5 @@ html,body{overscroll-behavior-y:contain}
 .row-card.late{border-left:3px solid var(--neg)}.row-card.late .muted{color:var(--neg)}
 .blk.nod{background:repeating-linear-gradient(45deg,#f4d9a8,#f4d9a8 6px,#fbeccb 6px,#fbeccb 12px);color:#7a5200;font-weight:600}.week td.blk.nod{background:repeating-linear-gradient(45deg,#f4d9a8,#f4d9a8 4px,#fbeccb 4px,#fbeccb 8px)}
 @media (prefers-color-scheme:dark){.blk.nod{background:repeating-linear-gradient(45deg,#5a4318,#5a4318 6px,#3d2e10 6px,#3d2e10 12px);color:#f1d79c}}
+.chip.nod{background:repeating-linear-gradient(45deg,#f4d9a8,#f4d9a8 6px,#fbeccb 6px,#fbeccb 12px);color:#7a5200;border-color:#e3b865;cursor:default}
+@media (prefers-color-scheme:dark){.chip.nod{background:repeating-linear-gradient(45deg,#5a4318,#5a4318 6px,#3d2e10 6px,#3d2e10 12px);color:#f1d79c;border-color:#7a5a1f}}
