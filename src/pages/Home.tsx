@@ -29,11 +29,24 @@ export default function Home({ openPersona }: { openPersona: (id: string) => voi
   const enFeriado = d.clases.filter((c: any) => c.estado === 'agendada' && c.fecha >= hoy && fer.has(c.fecha)).sort((a: any, b: any) => (a.fecha + a.hora).localeCompare(b.fecha + b.hora));
   const pasarFeriados = async () => { for (const c of enFeriado) await ops.ausente(c, 'feriado'); };
 
+  const ahora = (() => { const n = new Date(); return n.getHours() * 60 + n.getMinutes(); })();
+  const avisoPruebas = useMemo(() => {
+    const out: any[] = [];
+    d.clases.filter((c: any) => c.tipo === 'prueba' && c.estado === 'agendada').forEach((c: any) => {
+      const p = idx.personaById.get(c.persona_id); if (!p) return;
+      const previoOk = c.fecha === addDays(hoy, 1) && ahora < 21 * 60;
+      const hoyOk = c.fecha === hoy && ahora < timeToMin(c.hora);
+      if (previoOk) out.push({ c, p, k: 'previo', key: 'prueba_previa|' + c.fecha + '|' + c.persona_id });
+      if (hoyOk) out.push({ c, p, k: 'hoy', key: 'confirmacion|' + hoy + '|' + c.persona_id, faltoPrevio: !d.avisos.some((a: any) => a.tipo === 'prueba_previa' && a.ref === c.fecha && a.persona_id === c.persona_id) });
+    });
+    return out.sort((a, b) => (a.c.fecha + a.c.hora).localeCompare(b.c.fecha + b.c.hora));
+  }, [d.clases, d.avisos, idx, hoy, ahora]);
   const avisosSet = useMemo(() => { const s = new Set<string>(); d.avisos.forEach((a: any) => s.add(a.tipo + '|' + a.ref + '|' + a.persona_id)); return s; }, [d.avisos]);
   const sg = useSeguimiento();
   const [inscr, setInscr] = useState<any>(null);
   const sePudo = async (c: any) => { const ok = await ops.asistio(c); if (ok && c.tipo === 'prueba') { const p = idx.personaById.get(c.persona_id); const ya = (idx.subsByP.get(c.persona_id) || []).some((s: any) => s.tipo !== 'unica'); if (p && !ya) setInscr(p); } };
-  const sinTareas = !sg.pendientes && !porCerrar.length && !aConfirmar.length && !enFeriado.length && dadas === totalDia;
+  const avisosPend = avisoPruebas.filter((a: any) => !avisosSet.has(a.key)).length;
+  const sinTareas = !avisosPend && !sg.pendientes && !porCerrar.length && !aConfirmar.length && !enFeriado.length && dadas === totalDia;
   const diaListo = sinTareas && totalDia > 0;
 
   return (
@@ -71,6 +84,16 @@ export default function Home({ openPersona }: { openPersona: (id: string) => voi
               <div className="time sm">{fmtDate(c.fecha)}<br />{hm(c.hora)}</div><div className="grow"><b>{idx.personaById.get(c.persona_id)?.nombre}</b></div>
               <button className="btn sm ok" onClick={(e) => { e.stopPropagation(); sePudo(c); }}>Se dio</button></div>))}
             {porCerrar.length > 12 && <div className="muted small pad">y {porCerrar.length - 12} más…</div>}</div></section>
+      )}
+
+      {avisoPruebas.length > 0 && (
+        <section><div className="sec-head"><h2>Avisar a pruebas</h2><span className="count">{avisosPend}</span></div>
+          <div className="muted small pad">Recordatorio por WhatsApp a quienes tienen clase de prueba: el día anterior (hasta las 21:00) y en la mañana, antes de la clase. Si se pasa el horario, la tarea desaparece sola.</div>
+          <div className="list">{avisoPruebas.map((a: any) => { const done = avisosSet.has(a.key); const tipo = a.k === 'previo' ? 'prueba_previa' : 'prueba_hoy'; const log = a.k === 'previo' ? { tipo: 'prueba_previa', ref: a.c.fecha } : { tipo: 'confirmacion', ref: hoy };
+            return (<div key={a.key} className={'row-card plain check' + (done ? ' done' : '')} onClick={() => setSel(a.c)}>
+              <span className={'chk' + (done ? ' on' : '')}>{done ? '✓' : ''}</span>
+              <div className="grow"><b>{a.p.nombre}</b><div className="small muted">{a.k === 'previo' ? `Aviso previo · mañana ${hm(a.c.hora)}` : `Aviso de hoy · ${hm(a.c.hora)}`}{a.faltoPrevio ? ' · no se avisó ayer' : ''}</div></div>
+              <WaDot done={done} onUndo={() => undoWa(a.c.persona_id, log.tipo, log.ref)} onClick={() => wa(a.p, tipo, { hora: hm(a.c.hora), fecha: fmtDate(a.c.fecha) }, log)} /></div>); })}</div></section>
       )}
 
       <section><div className="sec-head"><h2>Seguimiento</h2></div>

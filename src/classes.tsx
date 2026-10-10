@@ -52,12 +52,16 @@ export function useUndoAviso() {
     try { for (const a of rows) await upd('avisos', a.id, { deleted_at: new Date().toISOString() }); toast('Marca quitada'); } catch (e: any) { toast('Error: ' + e.message); }
   };
 }
+export const DEFAULT_TPL: Record<string, string> = {
+  prueba_previa: 'Hola {nombre}! Te recordamos que mañana {fecha} a las {hora} tenés tu clase de prueba en Focus Pilates 💛 ¿Nos confirmás que venís? Cualquier cambio avisanos.',
+  prueba_hoy: 'Hola {nombre}! Hoy a las {hora} te esperamos para tu clase de prueba en Focus Pilates 🙌 Recordá venir con ropa cómoda. ¿Nos confirmás?',
+};
 export function useWhats() {
   const { cfg, me, ins } = useApp();
   return (p: any, tipo: string, vars: Record<string, string>, log?: { tipo: string; ref: string }) => {
     const tel = normPhone(p.celular || '', cfg.pais_tel);
     if (!tel) { alert('Esta persona no tiene celular cargado'); return; }
-    const txt = fillTpl(cfg.plantillas[tipo] || '', { nombre: primerNombre(p.nombre), ...vars });
+    const txt = fillTpl(cfg.plantillas[tipo] || DEFAULT_TPL[tipo] || '', { nombre: primerNombre(p.nombre), ...vars });
     window.open(waLink(tel, txt), '_blank');
     if (log) ins('avisos', { persona_id: p.id, tipo: log.tipo, ref: log.ref, usuario: me?.nick }).catch(() => {});
   };

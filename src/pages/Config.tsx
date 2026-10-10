@@ -6,6 +6,7 @@ import { adminFn, historial, changeOwnPassword, fetchAll } from '../api';
 import { buildXlsx, download } from '../xlsx';
 import { fmtDate, gs, hm, monthLabel } from '../util';
 import { allMonths } from '../fin';
+import { DEFAULT_TPL } from '../classes';
 
 const SECS: [string, string, string][] = [
   ['general', 'General', 'Horario, cupo, plazos, umbrales de atraso'], ['planes', 'Planes', 'Precios y planes'], ['promos', 'Promos y grupos', 'Descuentos'], ['pagos', 'Métodos de pago', ''],
@@ -153,11 +154,11 @@ function ProfeRow({ p }: { p: any }) { const { upd } = useApp(); const save = us
     {tipo === 'fija' && <Field label="Salario base mensual (Gs)"><input inputMode="numeric" value={Number(b).toLocaleString('es-PY')} onChange={(e) => setB(e.target.value.replace(/\D/g, '') || '0')} /></Field>}
     <Acciones dirty={dirty} onSave={async () => { if (await ask(`¿Guardar los cambios de ${p.nombre}? Salario base: ${gs(b)}.`)) save(() => upd('profesoras', p.id, { salario_base: Number(b), tipo, activa: act })); }} onDiscard={() => { setB(String(Math.round(p.salario_base || 0))); setTipo(p.tipo); setAct(p.activa !== false); }} /></div>); }
 
-const TPL: [string, string, string][] = [['confirmacion', 'Confirmar clase de hoy', '{nombre} {hora}'], ['renovacion', 'Aviso de renovación', '{nombre} {vence} {plan}'], ['atraso', 'Suscripción vencida / atraso', '{nombre} {vence} {plan}'], ['invitacion_prueba', 'Invitar: hizo prueba y no siguió', '{nombre}'], ['invitacion_inactiva', 'Invitar: dejó de venir', '{nombre}']];
+const TPL: [string, string, string][] = [['prueba_previa', 'Prueba: aviso del día anterior', '{nombre} {fecha} {hora}'], ['prueba_hoy', 'Prueba: aviso de la mañana', '{nombre} {hora}'], ['confirmacion', 'Confirmar clase de hoy', '{nombre} {hora}'], ['renovacion', 'Aviso de renovación', '{nombre} {vence} {plan}'], ['atraso', 'Suscripción vencida / atraso', '{nombre} {vence} {plan}'], ['invitacion_prueba', 'Invitar: hizo prueba y no siguió', '{nombre}'], ['invitacion_inactiva', 'Invitar: dejó de venir', '{nombre}']];
 function Plantillas() {
   const { cfg, setCfg } = useApp(); const save = useSave(); const { ask, node } = useConfirm(); const init = React.useRef(JSON.stringify(cfg.plantillas)); const [t, setT] = useState<any>({ ...cfg.plantillas });
   const dirty = JSON.stringify(t) !== init.current; useDirty(dirty);
-  return (<div className="stack">{node}{TPL.map(([k, l, vars]) => <Field key={k} label={l} hint={`Variables: ${vars}`}><textarea rows={3} value={t[k] || ''} onChange={(e) => setT({ ...t, [k]: e.target.value })} /></Field>)}
+  return (<div className="stack">{node}{TPL.map(([k, l, vars]) => <Field key={k} label={l} hint={`Variables: ${vars}`}><textarea rows={3} value={t[k] ?? DEFAULT_TPL[k] ?? ''} onChange={(e) => setT({ ...t, [k]: e.target.value })} /></Field>)}
     <Acciones dirty={dirty} label="Guardar mensajes" onSave={async () => { if (await ask('¿Guardar los mensajes de WhatsApp?')) { await save(() => setCfg('plantillas', t)); init.current = JSON.stringify(t); setT({ ...t }); } }} onDiscard={() => setT(JSON.parse(init.current))} /></div>);
 }
 
