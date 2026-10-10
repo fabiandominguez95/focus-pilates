@@ -49,6 +49,7 @@ export default function Home({ openPersona }: { openPersona: (id: string) => voi
 
       <section>
         <div className="sec-head"><h2>Clases de hoy</h2><div className="row" style={{ gap: 6 }}><button className="btn ghost sm" onClick={() => setOfrecer(true)}>Ofrecer horarios</button><button className="btn sm" onClick={() => setNuevo(true)}>+ Agendar</button></div></div>
+        {d.bloqueos.filter((b: any) => b.fecha === hoy && b.tipo === 'bloqueo').map((b: any) => <div key={b.id} className="blk nod" style={{ marginBottom: 8 }}>⛔ {b.motivo || 'No disponible'} · {hm(b.hora_desde) <= '00:00' && hm(b.hora_hasta) >= '23:59' ? 'todo el día' : `${hm(b.hora_desde)} a ${hm(b.hora_hasta)}`}</div>)}
         {delDia.length === 0 && <div className="muted pad">No hay clases agendadas para hoy.</div>}
         <div className="list">
           {delDia.map((c: any) => {
@@ -106,7 +107,8 @@ export default function Home({ openPersona }: { openPersona: (id: string) => voi
             <div key={pid} className="row-card t-nodada" style={{ alignItems: 'flex-start' }}>
               <div className="grow"><b>{idx.personaById.get(pid)?.nombre}{cs.length > 1 ? ` · ${cs.length} clases` : ''}</b>
                 <div className="small muted">{min === 999 ? 'sin vencimiento' : min === 0 ? 'último día' : `quedan ${min} día${min === 1 ? '' : 's'} para la más antigua`}</div>
-                <div className="rec-chips">{cs.map((c: any) => <button key={c.id} onClick={() => setSel(c)}>{fmtDate(c.fecha)} · {motivoLabel(c.motivo_ausencia)}</button>)}</div></div></div>))}</div>
+                <div className="rec-chips">{cs.map((c: any) => <button key={c.id} onClick={() => setSel(c)}>{fmtDate(c.fecha)} · {motivoLabel(c.motivo_ausencia)}</button>)}</div></div>{(() => { const pp = idx.personaById.get(pid); const ref = hoy; const lista = cs.map((c: any) => 'la del ' + fmtDate(c.fecha)).join(', ').replace(/, ([^,]*)$/, ' y $1'); const plazo = min === 999 ? '' : min === 0 ? ' Hoy es el último día para la más antigua.' : ` Te quedan ${min} día${min === 1 ? '' : 's'} para la que vence primero.`;
+              return pp ? <WaDot done={avisosSet.has('recup_pendientes|' + ref + '|' + pid)} onUndo={() => undoWa(pid, 'recup_pendientes', ref)} onClick={() => wa(pp, 'recuperar_pendientes', { fechas: lista, plazo }, { tipo: 'recup_pendientes', ref })} /> : null; })()}</div>))}</div>
           <MoreBtn k="rec" n={recPersonas.length} /></section>
       )}
 

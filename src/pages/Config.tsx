@@ -4,7 +4,7 @@ import { buildIndex, estadoPersona } from '../logic';
 import { Sheet, Field, Seg, useConfirm } from '../ui';
 import { adminFn, historial, changeOwnPassword, fetchAll } from '../api';
 import { buildXlsx, download } from '../xlsx';
-import { fmtDate, gs, hm, monthLabel } from '../util';
+import { fmtDate, gs, hm, monthLabel, addDays } from '../util';
 import { allMonths } from '../fin';
 import { DEFAULT_TPL } from '../classes';
 import { paCfg } from '../pruebas';
@@ -12,7 +12,7 @@ import { paCfg } from '../pruebas';
 const SECS: [string, string, string][] = [
   ['general', 'General', 'Horario, cupo, plazos, umbrales de atraso'], ['planes', 'Planes', 'Precios y planes'], ['promos', 'Promos y grupos', 'Descuentos'], ['pagos', 'Métodos de pago', ''],
   ['profes', 'Instructores/as', 'Fijas y suplentes, salario base'], ['plantillas', 'Mensajes de WhatsApp', 'Plantillas editables'], ['usuarios', 'Usuarios', 'Nicks, roles, contraseñas'],
-  ['backup', 'Backup en Excel', 'Descargar por mes o completo'], ['historial', 'Historial de cambios', 'Quién cambió qué'], ['baneados', 'Clientes baneados', 'Excluidos para siempre; se pueden desbanear'], ['avisos_pruebas', 'Avisos y seguimiento de pruebas', 'Horarios y días de los recordatorios'], ['audiencias', 'Audiencias para anuncios', 'CSV de celulares para excluir o reimpactar en Meta'], ['accesos', 'Accesos de alumnos/as', 'Quién vio su perfil y cuándo'], ['papelera', 'Papelera', 'Restaurar eliminados'],
+  ['backup', 'Backup en Excel', 'Descargar por mes o completo'], ['historial', 'Historial de cambios', 'Quién cambió qué'], ['baneados', 'Clientes baneados', 'Excluidos para siempre; se pueden desbanear'], ['nodisp', 'No disponible', 'Cursos, viajes u otros días/horarios sin clases'], ['avisos_pruebas', 'Avisos y seguimiento de pruebas', 'Horarios y días de los recordatorios'], ['audiencias', 'Audiencias para anuncios', 'CSV de celulares para excluir o reimpactar en Meta'], ['accesos', 'Accesos de alumnos/as', 'Quién vio su perfil y cuándo'], ['papelera', 'Papelera', 'Restaurar eliminados'],
 ];
 const DIRTY = { v: false };
 function useDirty(flag: boolean) { React.useEffect(() => { DIRTY.v = flag; return () => { DIRTY.v = false; }; }, [flag]); }
@@ -25,7 +25,7 @@ export default function Config({ sec = '' }: { sec?: string }) {
   const volver = async () => { if (DIRTY.v && !(await ask('Tenés cambios sin guardar. ¿Salir y descartarlos?'))) return; DIRTY.v = false; location.hash = 'config'; };
   if (sec && SECS.some((x) => x[0] === sec)) return <div className="page">{node}<header className="page-head"><button className="btn sm ghost" onClick={volver}>‹ Configuración</button><h1>{SECS.find((s) => s[0] === sec)?.[1]}</h1></header>
     {sec === 'general' && <General />}{sec === 'planes' && <Planes />}{sec === 'promos' && <Promos />}{sec === 'pagos' && <Metodos />}{sec === 'profes' && <Profes />}{sec === 'plantillas' && <Plantillas />}
-    {sec === 'usuarios' && <Usuarios />}{sec === 'backup' && <Backup />}{sec === 'historial' && <Historial />}{sec === 'accesos' && <Accesos />}{sec === 'audiencias' && <Audiencias />}{sec === 'avisos_pruebas' && <AvisosPruebas />}{sec === 'baneados' && <Baneados />}{sec === 'papelera' && <Papelera />}</div>;
+    {sec === 'usuarios' && <Usuarios />}{sec === 'backup' && <Backup />}{sec === 'historial' && <Historial />}{sec === 'accesos' && <Accesos />}{sec === 'audiencias' && <Audiencias />}{sec === 'nodisp' && <NoDisponible />}{sec === 'avisos_pruebas' && <AvisosPruebas />}{sec === 'baneados' && <Baneados />}{sec === 'papelera' && <Papelera />}</div>;
   return (<div className="page"><header className="page-head"><h1>Configuración</h1></header><div className="list">{SECS.map(([k, t, s]) => <div className="row-card plain" key={k} onClick={() => { location.hash = 'config/' + k; }}><div className="grow"><b>{t}</b><div className="small muted">{s}</div></div><span className="chev">›</span></div>)}</div></div>);
 }
 
@@ -66,6 +66,29 @@ function AvisosPruebas() {
     <div className="box stack"><b>Si no vino a la prueba</b>{chk('reag_on', 'Intentar reagendar')}
       <Field label="Primer intento: días después">{num('reag1')}</Field>{chk('reag2_on', 'Segundo intento')}<Field label="Segundo intento: días después">{num('reag2')}</Field></div>
     <Acciones dirty={dirty} onSave={async () => { if (await ask('¿Guardar estos tiempos de avisos?')) { await save(() => setCfg('pruebas_avisos', { ...v, post1: Number(v.post1) || 1, post2: Number(v.post2) || 3, reag1: Number(v.reag1) || 1, reag2: Number(v.reag2) || 3 })); init.current = JSON.stringify(v); setV({ ...v }); } }} onDiscard={() => setV(JSON.parse(init.current))} /></div>);
+}
+function NoDisponible() {
+  const { d, ins, upd, hoy, toast } = useApp(); const { ask, node } = useConfirm();
+  const [f, setF] = useState({ desde: hoy, hasta: '', todo: true, h1: '08:00', h2: '12:00', motivo: '' });
+  const grupos = useMemo(() => { const m = new Map<string, any[]>(); d.bloqueos.filter((b: any) => b.tipo === 'bloqueo' && b.fecha >= hoy).forEach((b: any) => { const k = b.grupo || b.id; (m.get(k) || m.set(k, []).get(k)!).push(b); }); return [...m.values()].map((r) => r.sort((a: any, b: any) => a.fecha.localeCompare(b.fecha))).sort((a, b) => a[0].fecha.localeCompare(b[0].fecha)); }, [d.bloqueos, hoy]);
+  const crear = async () => {
+    const hasta = f.hasta || f.desde; if (hasta < f.desde) { toast('La fecha final es anterior a la inicial'); return; }
+    const fechas: string[] = []; for (let x = f.desde; x <= hasta && fechas.length < 120; x = addDays(x, 1)) fechas.push(x);
+    const g = crypto.randomUUID();
+    try { for (const fe of fechas) await ins('bloqueos', { fecha: fe, hora_desde: f.todo ? '00:00' : f.h1, hora_hasta: f.todo ? '23:59' : f.h2, motivo: f.motivo.trim() || 'No disponible', tipo: 'bloqueo', grupo: g }); toast('Guardado'); setF({ ...f, hasta: '', motivo: '' }); } catch (e: any) { toast('Error: ' + e.message); }
+  };
+  const quitar = async (rows: any[]) => { if (!(await ask('¿Quitar este bloqueo? Vuelve a estar disponible.'))) return; try { for (const b of rows) await upd('bloqueos', b.id, { deleted_at: new Date().toISOString() }); toast('Quitado'); } catch (e: any) { toast('Error: ' + e.message); } };
+  const rango = (r: any[]) => { const a = r[0], z = r[r.length - 1]; const fechas = a.fecha === z.fecha ? fmtDate(a.fecha) : `${fmtDate(a.fecha)} al ${fmtDate(z.fecha)}`; const todo = hm(a.hora_desde) <= '00:00' && hm(a.hora_hasta) >= '23:59'; return `${fechas} · ${todo ? 'todo el día' : `${hm(a.hora_desde)} a ${hm(a.hora_hasta)}`}`; };
+  return (<div className="stack">{node}
+    <div className="muted small">Días u horarios en que no hay clases (un curso, un viaje…). Se ven en la Agenda con otro color y no se ofrecen en «Ofrecer horarios».</div>
+    <div className="box stack"><b>Agregar</b>
+      <div className="row2"><Field label="Desde"><input type="date" value={f.desde} onChange={(e) => setF({ ...f, desde: e.target.value })} /></Field><Field label="Hasta (vacío = un día)"><input type="date" value={f.hasta} onChange={(e) => setF({ ...f, hasta: e.target.value })} /></Field></div>
+      <label className="check"><input type="checkbox" checked={f.todo} onChange={(e) => setF({ ...f, todo: e.target.checked })} /> Todo el día</label>
+      {!f.todo && <div className="row2"><Field label="Desde la hora"><input type="time" value={f.h1} onChange={(e) => setF({ ...f, h1: e.target.value })} /></Field><Field label="Hasta la hora"><input type="time" value={f.h2} onChange={(e) => setF({ ...f, h2: e.target.value })} /></Field></div>}
+      <Field label="Motivo (opcional)"><input value={f.motivo} onChange={(e) => setF({ ...f, motivo: e.target.value })} placeholder="Curso, viaje…" /></Field>
+      <button className="btn" onClick={crear}>Agregar no disponibilidad</button></div>
+    <h3>Próximas</h3>{grupos.length === 0 && <div className="muted pad">No hay nada cargado.</div>}
+    <div className="list">{grupos.map((r) => <div className="row-card plain" key={r[0].id}><div className="grow"><b>{r[0].motivo || 'No disponible'}</b><div className="small muted">{rango(r)}</div></div><button className="btn ghost sm" onClick={() => quitar(r)}>Quitar</button></div>)}</div></div>);
 }
 function useSave() { const { toast } = useApp(); return async (fn: () => Promise<any>, ok = 'Guardado') => { try { await fn(); toast(ok); } catch (e: any) { toast('Error: ' + e.message); } }; }
 
@@ -171,7 +194,7 @@ function ProfeRow({ p }: { p: any }) { const { upd } = useApp(); const save = us
     {tipo === 'fija' && <Field label="Salario base mensual (Gs)"><input inputMode="numeric" value={Number(b).toLocaleString('es-PY')} onChange={(e) => setB(e.target.value.replace(/\D/g, '') || '0')} /></Field>}
     <Acciones dirty={dirty} onSave={async () => { if (await ask(`¿Guardar los cambios de ${p.nombre}? Salario base: ${gs(b)}.`)) save(() => upd('profesoras', p.id, { salario_base: Number(b), tipo, activa: act })); }} onDiscard={() => { setB(String(Math.round(p.salario_base || 0))); setTipo(p.tipo); setAct(p.activa !== false); }} /></div>); }
 
-const TPL: [string, string, string][] = [['prueba_post1', 'Prueba: seguimiento después de la clase', '{nombre} {fecha}'], ['prueba_post2', 'Prueba: segundo seguimiento', '{nombre} {fecha}'], ['prueba_reag1', 'Prueba: no vino, reagendar', '{nombre} {fecha}'], ['prueba_reag2', 'Prueba: no vino, segundo intento', '{nombre} {fecha}'], ['ofrecer_horarios', 'Ofrecer horarios (consulta nueva)', '{horarios} {personas}'], ['prueba_previa', 'Prueba: aviso del día anterior', '{nombre} {fecha} {hora}'], ['prueba_hoy', 'Prueba: aviso de la mañana', '{nombre} {hora}'], ['confirmacion', 'Confirmar clase de hoy', '{nombre} {hora}'], ['renovacion', 'Aviso de renovación', '{nombre} {vence} {plan}'], ['atraso', 'Suscripción vencida / atraso', '{nombre} {vence} {plan}'], ['invitacion_prueba', 'Invitar: hizo prueba y no siguió', '{nombre}'], ['invitacion_inactiva', 'Invitar: dejó de venir', '{nombre}']];
+const TPL: [string, string, string][] = [['recuperar_pendientes', 'Recordar clases por recuperar', '{nombre} {fechas} {plazo}'], ['prueba_post1', 'Prueba: seguimiento después de la clase', '{nombre} {fecha}'], ['prueba_post2', 'Prueba: segundo seguimiento', '{nombre} {fecha}'], ['prueba_reag1', 'Prueba: no vino, reagendar', '{nombre} {fecha}'], ['prueba_reag2', 'Prueba: no vino, segundo intento', '{nombre} {fecha}'], ['ofrecer_horarios', 'Ofrecer horarios (consulta nueva)', '{horarios} {personas}'], ['prueba_previa', 'Prueba: aviso del día anterior', '{nombre} {fecha} {hora}'], ['prueba_hoy', 'Prueba: aviso de la mañana', '{nombre} {hora}'], ['confirmacion', 'Confirmar clase de hoy', '{nombre} {hora}'], ['renovacion', 'Aviso de renovación', '{nombre} {vence} {plan}'], ['atraso', 'Suscripción vencida / atraso', '{nombre} {vence} {plan}'], ['invitacion_prueba', 'Invitar: hizo prueba y no siguió', '{nombre}'], ['invitacion_inactiva', 'Invitar: dejó de venir', '{nombre}']];
 function Plantillas() {
   const { cfg, setCfg } = useApp(); const save = useSave(); const { ask, node } = useConfirm(); const init = React.useRef(JSON.stringify(cfg.plantillas)); const [t, setT] = useState<any>({ ...cfg.plantillas });
   const dirty = JSON.stringify(t) !== init.current; useDirty(dirty);

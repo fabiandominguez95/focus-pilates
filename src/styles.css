@@ -136,3 +136,5 @@ html,body{overscroll-behavior-y:contain}
 .ptr .spin{display:inline-block;animation:ptrspin .8s linear infinite}@keyframes ptrspin{to{transform:rotate(360deg)}}
 
 .row-card.late{border-left:3px solid var(--neg)}.row-card.late .muted{color:var(--neg)}
+.blk.nod{background:repeating-linear-gradient(45deg,#f4d9a8,#f4d9a8 6px,#fbeccb 6px,#fbeccb 12px);color:#7a5200;font-weight:600}.week td.blk.nod{background:repeating-linear-gradient(45deg,#f4d9a8,#f4d9a8 4px,#fbeccb 4px,#fbeccb 8px)}
+@media (prefers-color-scheme:dark){.blk.nod{background:repeating-linear-gradient(45deg,#5a4318,#5a4318 6px,#3d2e10 6px,#3d2e10 12px);color:#f1d79c}}

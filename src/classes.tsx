@@ -53,6 +53,7 @@ export function useUndoAviso() {
   };
 }
 export const DEFAULT_TPL: Record<string, string> = {
+  recuperar_pendientes: 'Hola {nombre}! Tenés pendiente recuperar {fechas}.{plazo} ¿Me avisás para cuándo las agendamos? 🙌',
   prueba_post1: 'Hola {nombre}! ¿Cómo te fue en tu clase de prueba del {fecha}? Nos encantaría saber qué te pareció y ayudarte a elegir tu plan 💛',
   prueba_post2: 'Hola {nombre}! Te escribimos de Focus Pilates: todavía tenemos lugares disponibles para que arranques. ¿Querés que te reservemos un horario? 🤍',
   prueba_reag1: 'Hola {nombre}! Ayer te esperamos en tu clase de prueba y no pudiste venir. ¿Querés que la reagendemos para otro día? Contanos qué horario te queda cómodo 🙌',

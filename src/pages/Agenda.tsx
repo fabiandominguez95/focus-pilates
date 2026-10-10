@@ -68,13 +68,12 @@ export default function Agenda({ openPersona }: { openPersona: (id: string) => v
           {horas.map((h) => {
             const cs = dayClases(fecha).filter((c: any) => hm(c.hora) === h); const all = d.clases.filter((c: any) => c.fecha === fecha && hm(c.hora) === h && (c.estado === 'agendada' || c.estado === 'asistio')).length;
             const camas = cs.filter((c: any) => c.estado === 'agendada' || c.estado === 'asistio'); const otras = cs.filter((c: any) => !(c.estado === 'agendada' || c.estado === 'asistio'));
-            const vacias = Math.max(0, cfg.cupo - camas.length);
-            const b = bloqDe(fecha, h);
+            const b = bloqDe(fecha, h); const vacias = b && b.tipo === 'bloqueo' ? 0 : Math.max(0, cfg.cupo - camas.length);
             return (
               <div className={'hour' + (over === h ? ' dropping' : '')} key={h} onDragOver={(e) => { if (dragId) { e.preventDefault(); setOver(h); } }} onDragLeave={() => setOver((o) => (o === h ? null : o))} onDrop={(e) => { e.preventDefault(); soltar(h); }}>
                 <HourHead h={h} all={all} cupo={cfg.cupo} onWho={() => setWho(h)} />
                 <div className="hour-b">
-                  {b && <div className="blk">⛔ {b.motivo}</div>}
+                  {b && <div className={'blk' + (b.tipo === 'bloqueo' ? ' nod' : '')}>⛔ {b.motivo}</div>}
                   <div className="camas" style={{ gridTemplateColumns: `repeat(${Math.max(1, Math.max(cfg.cupo, camas.length))}, minmax(0, 1fr))` }}>
                     {camas.map((c: any) => <ClassPill key={c.id} c={c} idx={idx} onClick={() => setSel(c)} drag={c.estado === 'agendada'} onDragStart={() => setDragId(c.id)} onDragEnd={() => { setDragId(null); setOver(null); }} />)}
                     {Array.from({ length: vacias }, (_, i) => <button key={'v' + i} className="cama-v" onClick={() => setNuevo({ f: fecha, h })} aria-label="Cama libre">+</button>)}
@@ -91,7 +90,7 @@ export default function Agenda({ openPersona }: { openPersona: (id: string) => v
         <div className="week-wrap"><table className="week"><thead><tr><th></th>{Array.from({ length: 7 }, (_, i) => { const f = addDays(inicioSemana, i); return <th key={f} className={f === hoy ? 'today' : ''} onClick={() => { setFecha(f); setVista('dia'); }}>{DIAS3[parseD(f).getDay()]}<br /><small>{parseD(f).getDate()}</small></th>; })}</tr></thead>
           <tbody>{horas.map((h) => <tr key={h}><th>{h}</th>{Array.from({ length: 7 }, (_, i) => {
             const f = addDays(inicioSemana, i); const cs = dayClases(f).filter((c: any) => hm(c.hora) === h); const all = d.clases.filter((c: any) => c.fecha === f && hm(c.hora) === h && (c.estado === 'agendada' || c.estado === 'asistio')).length;
-            return <td key={f} className={'wc o' + Math.min(all, cfg.cupo) + (bloqDe(f, h) ? ' blk' : '')} onClick={() => { setFecha(f); setVista('dia'); }}>{cs.length ? cs.map((c: any) => <i key={c.id} className={'dot t-' + c.tipo + ' s-' + c.estado} title={idx.personaById.get(c.persona_id)?.nombre} />) : ''}</td>;
+            return <td key={f} className={'wc o' + Math.min(all, cfg.cupo) + (bloqDe(f, h) ? ' blk' + (bloqDe(f, h).tipo === 'bloqueo' ? ' nod' : '') : '')} onClick={() => { setFecha(f); setVista('dia'); }}>{cs.length ? cs.map((c: any) => <i key={c.id} className={'dot t-' + c.tipo + ' s-' + c.estado} title={idx.personaById.get(c.persona_id)?.nombre} />) : ''}</td>;
           })}</tr>)}</tbody></table>
           <div className="muted small pad">Cada punto es una persona. Tocá un día para ver el detalle.</div></div>
       )}
