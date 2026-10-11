@@ -69,3 +69,5 @@ export function diasHabilesMes(m: string, semana: number[], feriadosMes: string[
   for (let d = 1; d <= total; d++) { const s = `${m}-${pad(d)}`; if (semana.includes(dowISO(s)) && !feriadosMes.includes(s)) n++; }
   return n;
 }
+
+export const CANALES: [string, string][] = [['anuncio_meta', 'Anuncio (Meta)'], ['recomendacion', 'Recomendación'], ['puerta', 'Pasó por el estudio'], ['sin_marca', 'Sin dato / otro canal'], ['otro', 'Otro']];
