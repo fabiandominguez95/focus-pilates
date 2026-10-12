@@ -143,3 +143,5 @@ html,body{overscroll-behavior-y:contain}
 .sbox{position:relative;display:block}.sbox input{width:100%;padding-right:38px}.sclear{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:28px;height:28px;border-radius:50%;border:0;background:var(--line);color:var(--ink);font-size:18px;line-height:1;display:grid;place-items:center;padding:0}
 .sbox.search{margin-bottom:6px}
 .okno{display:flex;gap:6px;flex:none}.okno button{width:38px;height:38px;border-radius:50%;border:1.5px solid var(--line);background:var(--surface);font-size:18px;font-weight:700;line-height:1;display:grid;place-items:center;padding:0}.okno .si{color:var(--sage-d);border-color:var(--sage)}.okno .no{color:var(--neg);border-color:var(--neg)}
+.pill.aus{opacity:1;border:1.5px dashed var(--neg);background:rgba(200,70,70,.10);color:var(--neg);text-decoration:line-through;text-decoration-thickness:1px}.dot.s-ausente{opacity:1;background:var(--neg)}
+.row-card.aus{opacity:.85;border-left:3px solid var(--neg)}

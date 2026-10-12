@@ -20,7 +20,6 @@ export default function Agenda({ openPersona }: { openPersona: (id: string) => v
     if (quick === 'aus' && c.estado !== 'ausente') return false;
     if (quick === 'asis' && c.estado !== 'asistio') return false;
     if (quick === 'prueba' && c.tipo !== 'prueba') return false;
-    if (quick === 'todo' && c.estado === 'ausente' && !estado) return false; // la clase original ausente se oculta
     if (tipo && c.tipo !== tipo) return false; if (estado && c.estado !== estado) return false; if (profe && c.profesora_id !== profe) return false;
     if (q && !normStr(idx.personaById.get(c.persona_id)?.nombre || '').includes(normStr(q))) return false;
     return true;
