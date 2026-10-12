@@ -6,7 +6,7 @@ import { WaDot, useFeriadoSet, DEFAULT_TPL } from './classes';
 import { addDays, fmtDate, hm, timeToMin, DIAS, parseD } from './util';
 
 // ---- Configuración de avisos a pruebas -------------------------------------------------------------
-export const PA_DEF = { previo_hasta: '21:00', desde: '2026-10-10', post_on: true, post1: 1, post2_on: true, post2: 3, reag_on: true, reag1: 1, reag2_on: true, reag2: 3 };
+export const PA_DEF = { previo_hasta: '21:00', desde: '2026-10-10', post_on: true, post1_h: 3, post2_on: true, post2_h: 72, reag_on: true, reag1: 1, reag2_on: true, reag2: 3 };
 export const paCfg = (cfg: any) => ({ ...PA_DEF, ...(cfg.pruebas_avisos || {}) });
 
 
@@ -53,9 +53,12 @@ export function usePruebasTareas(): Tarea[] {
       const bloqueado = cerrado || mensual || p.baneado || p.no_contactar;
       const serieDe = (pref: 'post' | 'reag', ks: [string, string]) => {
         const on1 = A[pref + '_on']; if (!on1 || bloqueado) return;
-        const d1 = addDays(c.fecha, Number(A[pref === 'post' ? 'post1' : 'reag1'])); const d2 = addDays(c.fecha, Number(A[pref === 'post' ? 'post2' : 'reag2'])); const on2 = A[pref + '2_on'];
-        if (hoy >= d1 && hoy <= addDays(d1, 21)) push({ key: baseKey(ks[0]), k: ks[0], c, p, vencida: !!on2 && hoy >= d2, tpl: 'prueba_' + ks[0], logTipo: 'prueba_' + ks[0], logRef: c.id, serie: true });
-        if (on2 && hoy >= d2 && hoy <= addDays(d2, 21)) push({ key: baseKey(ks[1]), k: ks[1], c, p, vencida: false, tpl: 'prueba_' + ks[1], logTipo: 'prueba_' + ks[1], logRef: c.id, serie: true });
+        // post-prueba: horas después de terminar la clase; reagendar: días después de la fecha de la prueba
+        const finMs = new Date(c.fecha + 'T' + hm(c.hora) + ':00').getTime() + (cfg.duracion_min || 60) * 60000; const inicioDia = new Date(c.fecha + 'T00:00:00').getTime();
+        const mom = (k: 'a' | 'b') => (pref === 'post' ? finMs + Number(A[k === 'a' ? 'post1_h' : 'post2_h']) * 3600000 : inicioDia + Number(A[k === 'a' ? 'reag1' : 'reag2']) * 86400000);
+        const d1 = mom('a'); const d2 = mom('b'); const on2 = A[pref + '2_on']; const ahoraMs = Date.now(); const ventana = 21 * 86400000;
+        if (ahoraMs >= d1 && ahoraMs <= d1 + ventana) push({ key: baseKey(ks[0]), k: ks[0], c, p, vencida: !!on2 && ahoraMs >= d2, tpl: 'prueba_' + ks[0], logTipo: 'prueba_' + ks[0], logRef: c.id, serie: true });
+        if (on2 && ahoraMs >= d2 && ahoraMs <= d2 + ventana) push({ key: baseKey(ks[1]), k: ks[1], c, p, vencida: false, tpl: 'prueba_' + ks[1], logTipo: 'prueba_' + ks[1], logRef: c.id, serie: true });
       };
       if (st === 'asistio') serieDe('post', ['post1', 'post2']);
       if (st === 'ausente' && !sinCulpa(c)) {
