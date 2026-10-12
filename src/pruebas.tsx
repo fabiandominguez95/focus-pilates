@@ -6,7 +6,7 @@ import { WaDot, useFeriadoSet, DEFAULT_TPL } from './classes';
 import { addDays, fmtDate, hm, timeToMin, DIAS, parseD } from './util';
 
 // ---- Configuración de avisos a pruebas -------------------------------------------------------------
-export const PA_DEF = { previo_hasta: '21:00', desde: '2026-10-10', post_on: true, post1_h: 3, post2_on: true, post2_h: 72, reag_on: true, reag1: 1, reag2_on: true, reag2: 3 };
+export const PA_DEF = { previo_hasta: '20:00', hora_envio: '09:00', desde: '2026-10-10', post_on: true, post_h: 2, post2_on: true, post_gap: 1, reag_on: true, reag1: 1, reag2_on: true, reag2: 3 };
 export const paCfg = (cfg: any) => ({ ...PA_DEF, ...(cfg.pruebas_avisos || {}) });
 
 
@@ -53,10 +53,21 @@ export function usePruebasTareas(): Tarea[] {
       const bloqueado = cerrado || mensual || p.baneado || p.no_contactar;
       const serieDe = (pref: 'post' | 'reag', ks: [string, string]) => {
         const on1 = A[pref + '_on']; if (!on1 || bloqueado) return;
-        // post-prueba: horas después de terminar la clase; reagendar: días después de la fecha de la prueba
-        const finMs = new Date(c.fecha + 'T' + hm(c.hora) + ':00').getTime() + (cfg.duracion_min || 60) * 60000; const inicioDia = new Date(c.fecha + 'T00:00:00').getTime();
-        const mom = (k: 'a' | 'b') => (pref === 'post' ? finMs + Number(A[k === 'a' ? 'post1_h' : 'post2_h']) * 3600000 : inicioDia + Number(A[k === 'a' ? 'reag1' : 'reag2']) * 86400000);
-        const d1 = mom('a'); const d2 = mom('b'); const on2 = A[pref + '2_on']; const ahoraMs = Date.now(); const ventana = 21 * 86400000;
+        // Post-prueba: X horas después de terminar la clase; si cae fuera del horario de contacto, pasa al día siguiente a la hora de envío.
+        // El segundo mensaje sale siempre N días después del primero, a la hora de envío. Reagendar: N días después de la prueba, a la hora de envío.
+        const finMs = new Date(c.fecha + 'T' + hm(c.hora) + ':00').getTime() + (cfg.duracion_min || 60) * 60000;
+        const aHora = (ms: number, hhmm: string) => { const x = new Date(ms); x.setHours(0, 0, 0, 0); return x.getTime() + timeToMin(hhmm) * 60000; };
+        const sigDia = (ms: number, n: number) => { const x = new Date(ms); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() + n); return x.getTime(); };
+        const limite = timeToMin(A.previo_hasta); let d1: number, d2: number;
+        if (pref === 'post') {
+          const t = finMs + Number(A.post_h) * 3600000; const mm = new Date(t).getHours() * 60 + new Date(t).getMinutes();
+          d1 = mm > limite ? aHora(sigDia(t, 1), A.hora_envio) : t;
+          d2 = aHora(sigDia(d1, Number(A.post_gap) || 1), A.hora_envio);
+        } else {
+          const base = new Date(c.fecha + 'T00:00:00').getTime();
+          d1 = aHora(sigDia(base, Number(A.reag1)), A.hora_envio); d2 = aHora(sigDia(base, Number(A.reag2)), A.hora_envio);
+        }
+        const on2 = A[pref + '2_on']; const ahoraMs = Date.now(); const ventana = 21 * 86400000;
         if (ahoraMs >= d1 && ahoraMs <= d1 + ventana) push({ key: baseKey(ks[0]), k: ks[0], c, p, vencida: !!on2 && ahoraMs >= d2, tpl: 'prueba_' + ks[0], logTipo: 'prueba_' + ks[0], logRef: c.id, serie: true });
         if (on2 && ahoraMs >= d2 && ahoraMs <= d2 + ventana) push({ key: baseKey(ks[1]), k: ks[1], c, p, vencida: false, tpl: 'prueba_' + ks[1], logTipo: 'prueba_' + ks[1], logRef: c.id, serie: true });
       };
@@ -73,7 +84,7 @@ export function usePruebasTareas(): Tarea[] {
 export function useTareaOps() {
   const { me, ins, toast } = useApp();
   const marcar = async (t: Tarea) => { try { await ins('avisos', { persona_id: t.p.id, tipo: 'nohecho_' + t.logTipo, ref: t.logRef, usuario: me?.nick }); toast('Anotado: no se hizo'); } catch (e: any) { toast('Error: ' + e.message); } };
-  const cerrar = async (t: Tarea) => { try { await ins('avisos', { persona_id: t.p.id, tipo: 'prueba_cerrado', ref: t.c.id, usuario: me?.nick }); toast('Listo, no se le escribe más'); } catch (e: any) { toast('Error: ' + e.message); } };
+  const cerrar = async (t: Tarea) => { try { await ins('avisos', { persona_id: t.p.id, tipo: 'prueba_cerrado', ref: t.c.id, usuario: me?.nick }); await ins('avisos', { persona_id: t.p.id, tipo: 'invitacion_prueba', ref: 'respondio', usuario: me?.nick }); toast('Listo: no se le insiste más y pasa a «En espera» en Seguimiento'); } catch (e: any) { toast('Error: ' + e.message); } };
   return { marcar, cerrar };
 }
 
@@ -84,7 +95,7 @@ export function TareaRow({ t, done, onWa, onUndo, onOpen, onMarcar, onCerrar }: 
     <div className={'row-card plain check' + (done ? ' done' : '') + (t.vencida ? ' late' : '')} onClick={onOpen}>
       <span className={'chk' + (done ? ' on' : '')}>{done ? '✓' : ''}</span>
       <div className="grow"><b>{t.p.nombre}</b><div className="small muted">{sub}{t.vencida ? ' · pasó el horario' : ''}</div></div>
-      {t.serie && !done && <button className="btn ghost sm" onClick={(e) => { e.stopPropagation(); onCerrar(); }} title="Ya respondió, se inscribió o no hace falta">Ya no hace falta</button>}
+      {t.serie && !done && <button className="btn ghost sm" onClick={(e) => { e.stopPropagation(); onCerrar(); }} title="Ya respondió: no se le insiste más y pasa a En espera en Seguimiento">Ya respondió</button>}
       {t.vencida && !done && <button className="btn ghost sm" onClick={(e) => { e.stopPropagation(); onMarcar(); }}>No se hizo</button>}
       {puedeWa && <WaDot done={done} onUndo={onUndo} onClick={onWa} />}
     </div>

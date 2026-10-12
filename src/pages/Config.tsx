@@ -60,12 +60,13 @@ function AvisosPruebas() {
   return (<div className="stack">{node}
     <div className="muted small">Se aplican a las pruebas desde la fecha indicada. Los mensajes se editan en «Mensajes de WhatsApp».</div>
     <Field label="Aplicar a pruebas desde"><input type="date" value={v.desde} onChange={(e) => set('desde', e.target.value)} /></Field>
-    <Field label="Aviso del día anterior: hora máxima para escribir" hint="Después de esa hora queda como «sin hacer»"><input type="time" value={v.previo_hasta} onChange={(e) => set('previo_hasta', e.target.value)} /></Field>
+    <Field label="Hora límite para escribir" hint="Vale para el aviso del día anterior y para los mensajes después de la prueba"><input type="time" value={v.previo_hasta} onChange={(e) => set('previo_hasta', e.target.value)} /></Field>
+    <Field label="Hora de envío de los mensajes del día siguiente" hint="Seguimientos y reagendar salen a esta hora"><input type="time" value={v.hora_envio} onChange={(e) => set('hora_envio', e.target.value)} /></Field>
     <div className="box stack"><b>Después de la prueba (si vino)</b>{chk('post_on', 'Seguimiento para que se inscriba')}
-      <Field label="Primer mensaje: horas después de terminar la clase" hint="Por ejemplo 3 o 4. 24 = al día siguiente">{num('post1_h')}</Field>{chk('post2_on', 'Segundo mensaje')}<Field label="Segundo mensaje: horas después de terminar la clase" hint="72 = a los 3 días">{num('post2_h')}</Field></div>
+      <Field label="Primer mensaje: horas después de terminar la clase" hint="Si cae después de la hora límite, sale al día siguiente a la hora de envío">{num('post_h')}</Field>{chk('post2_on', 'Segundo mensaje')}<Field label="Segundo mensaje: días después del primero" hint="Siempre sale a la hora de envío">{num('post_gap')}</Field></div>
     <div className="box stack"><b>Si no vino a la prueba</b>{chk('reag_on', 'Intentar reagendar')}
       <Field label="Primer intento: días después">{num('reag1')}</Field>{chk('reag2_on', 'Segundo intento')}<Field label="Segundo intento: días después">{num('reag2')}</Field></div>
-    <Acciones dirty={dirty} onSave={async () => { if (await ask('¿Guardar estos tiempos de avisos?')) { await save(() => setCfg('pruebas_avisos', { ...v, post1_h: Number(v.post1_h) || 3, post2_h: Number(v.post2_h) || 72, reag1: Number(v.reag1) || 1, reag2: Number(v.reag2) || 3 })); init.current = JSON.stringify(v); setV({ ...v }); } }} onDiscard={() => setV(JSON.parse(init.current))} /></div>);
+    <Acciones dirty={dirty} onSave={async () => { if (await ask('¿Guardar estos tiempos de avisos?')) { await save(() => setCfg('pruebas_avisos', { ...v, post_h: Number(v.post_h) || 2, post_gap: Number(v.post_gap) || 1, reag1: Number(v.reag1) || 1, reag2: Number(v.reag2) || 3 })); init.current = JSON.stringify(v); setV({ ...v }); } }} onDiscard={() => setV(JSON.parse(init.current))} /></div>);
 }
 function NoDisponible() {
   const { d, ins, upd, hoy, toast } = useApp(); const { ask, node } = useConfirm();
