@@ -9,7 +9,7 @@ import { useSeguimiento } from './Seguimiento';
 import { Sheet } from '../ui';
 import { WaDot } from '../classes';
 import { usePruebasTareas, useTareaOps, TareaRow, OfrecerHorarios } from '../pruebas';
-import { addDays, diffDays, fmtDate, fmtLong, hm, timeToMin } from '../util';
+import { diaRel, addDays, diffDays, fmtDate, fmtLong, hm, timeToMin } from '../util';
 
 export default function Home({ openPersona }: { openPersona: (id: string) => void }) {
   const { d, cfg, hoy } = useApp();
@@ -82,7 +82,7 @@ export default function Home({ openPersona }: { openPersona: (id: string) => voi
           <div className="muted small pad">Aviso el día anterior y en la mañana, y seguimiento después de la prueba (o para reagendar si no vino). Si se pasa el horario queda «sin hacer» hasta que lo anotes.</div>
           <div className="list">{[...tareas.filter((t) => !t.vencida), ...tareas.filter((t) => t.vencida)].map((t) => { const done = avisosSet.has(t.logTipo + '|' + t.logRef + '|' + t.p.id);
             return <TareaRow key={t.key} t={t} done={done} onOpen={() => setSel(t.c)} onMarcar={() => tops.marcar(t)} onCerrar={() => tops.cerrar(t)} onUndo={() => undoWa(t.p.id, t.logTipo, t.logRef)}
-              onWa={() => wa(t.p, t.tpl, { hora: hm(t.c.hora), fecha: fmtDate(t.c.fecha) }, { tipo: t.logTipo, ref: t.logRef })} />; })}</div></section>
+              onWa={() => wa(t.p, t.tpl, { hora: hm(t.c.hora), fecha: fmtDate(t.c.fecha), dia: diaRel(t.c.fecha, hoy) }, { tipo: t.logTipo, ref: t.logRef })} />; })}</div></section>
       )}
 
       <section><div className="sec-head"><h2>Seguimiento</h2></div>

@@ -12,7 +12,7 @@ export const paCfg = (cfg: any) => ({ ...PA_DEF, ...(cfg.pruebas_avisos || {}) }
 
 export const TK_LABEL: Record<string, string> = { previo: 'Aviso previo', hoy: 'Aviso de hoy', post1: 'Seguimiento post-prueba', post2: 'Segundo seguimiento', reag1: 'Reagendar (no vino)', reag2: 'Segundo intento de reagendar' };
 
-export type Tarea = { key: string; k: string; c: any; p: any; vencida: boolean; tpl: string; logTipo: string; logRef: string; serie: boolean };
+export type Tarea = { reprog?: boolean; key: string; k: string; c: any; p: any; vencida: boolean; tpl: string; logTipo: string; logRef: string; serie: boolean };
 
 export function useAvisosSet() {
   const { d } = useApp();
@@ -30,7 +30,7 @@ export function usePruebasTareas(): Tarea[] {
     const push = (t: Tarea) => {
       if (has('nohecho_' + t.logTipo, t.logRef, t.p.id)) return;
       const row = d.avisos.find((a: any) => a.tipo === t.logTipo && a.ref === t.logRef && a.persona_id === t.p.id);
-      if (row && !(row.created_at && hoyLocal(row.created_at) === hoy)) return; // lo hecho se ve solo el día que se hizo
+      const rc = row && (row.creado_en || row.created_at); if (row && !(rc && hoyLocal(rc) === hoy)) return; // lo hecho se ve solo el día que se hizo
       out.push(t);
     };
     const maxAtras = 7;
@@ -58,17 +58,23 @@ export function usePruebasTareas(): Tarea[] {
         const finMs = new Date(c.fecha + 'T' + hm(c.hora) + ':00').getTime() + (cfg.duracion_min || 60) * 60000;
         const aHora = (ms: number, hhmm: string) => { const x = new Date(ms); x.setHours(0, 0, 0, 0); return x.getTime() + timeToMin(hhmm) * 60000; };
         const sigDia = (ms: number, n: number) => { const x = new Date(ms); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() + n); return x.getTime(); };
-        const limite = timeToMin(A.previo_hasta); let d1: number, d2: number;
+        const limite = timeToMin(A.previo_hasta); let d1: number, d2: number; let reprog = false;
         if (pref === 'post') {
           const t = finMs + Number(A.post_h) * 3600000; const mm = new Date(t).getHours() * 60 + new Date(t).getMinutes();
           d1 = mm > limite ? aHora(sigDia(t, 1), A.hora_envio) : t;
+          // Si no se le escribió dentro del horario de contacto, el primer mensaje se reprograma al día siguiente a la hora de envío (una sola vez).
+          if (mm <= limite) {
+            const limMs = aHora(d1, A.previo_hasta); const row = d.avisos.find((a: any) => a.tipo === 'prueba_post1' && a.ref === c.id && a.persona_id === p.id);
+            const creado = row?.creado_en || row?.created_at; const fuera = row ? (creado ? new Date(creado).getTime() > limMs : false) : Date.now() > limMs;
+            if (fuera) { d1 = aHora(sigDia(d1, 1), A.hora_envio); reprog = true; }
+          }
           d2 = aHora(sigDia(d1, Number(A.post_gap) || 1), A.hora_envio);
         } else {
           const base = new Date(c.fecha + 'T00:00:00').getTime();
           d1 = aHora(sigDia(base, Number(A.reag1)), A.hora_envio); d2 = aHora(sigDia(base, Number(A.reag2)), A.hora_envio);
         }
         const on2 = A[pref + '2_on']; const ahoraMs = Date.now(); const ventana = 21 * 86400000;
-        if (ahoraMs >= d1 && ahoraMs <= d1 + ventana) push({ key: baseKey(ks[0]), k: ks[0], c, p, vencida: !!on2 && ahoraMs >= d2, tpl: 'prueba_' + ks[0], logTipo: 'prueba_' + ks[0], logRef: c.id, serie: true });
+        if (ahoraMs >= d1 && ahoraMs <= d1 + ventana) push({ key: baseKey(ks[0]), k: ks[0], c, p, vencida: !!on2 && ahoraMs >= d2, tpl: 'prueba_' + ks[0], logTipo: 'prueba_' + ks[0], logRef: c.id, serie: true, reprog });
         if (on2 && ahoraMs >= d2 && ahoraMs <= d2 + ventana) push({ key: baseKey(ks[1]), k: ks[1], c, p, vencida: false, tpl: 'prueba_' + ks[1], logTipo: 'prueba_' + ks[1], logRef: c.id, serie: true });
       };
       if (st === 'asistio') serieDe('post', ['post1', 'post2']);
@@ -94,7 +100,7 @@ export function TareaRow({ t, done, onWa, onUndo, onOpen, onMarcar, onCerrar }: 
   return (
     <div className={'row-card plain check' + (done ? ' done' : '') + (t.vencida ? ' late' : '')} onClick={onOpen}>
       <span className={'chk' + (done ? ' on' : '')}>{done ? '✓' : ''}</span>
-      <div className="grow"><b>{t.p.nombre}</b><div className="small muted">{sub}{t.vencida ? ' · pasó el horario' : ''}</div></div>
+      <div className="grow"><b>{t.p.nombre}</b><div className="small muted">{sub}{t.vencida ? ' · pasó el horario' : ''}{t.reprog && !t.vencida ? ' · reprogramado: no se escribió en el horario' : ''}</div></div>
       {t.serie && !done && <button className="btn ghost sm" onClick={(e) => { e.stopPropagation(); onCerrar(); }} title="Ya respondió: no se le insiste más y pasa a En espera en Seguimiento">Ya respondió</button>}
       {t.vencida && !done && <button className="btn ghost sm" onClick={(e) => { e.stopPropagation(); onMarcar(); }}>No se hizo</button>}
       {puedeWa && <WaDot done={done} onUndo={onUndo} onClick={onWa} />}

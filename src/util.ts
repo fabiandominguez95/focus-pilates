@@ -71,3 +71,6 @@ export function diasHabilesMes(m: string, semana: number[], feriadosMes: string[
 }
 
 export const CANALES: [string, string][] = [['anuncio_meta', 'Anuncio (Meta)'], ['recomendacion', 'Recomendación'], ['puerta', 'Pasó por el estudio'], ['sin_marca', 'Sin dato / otro canal'], ['otro', 'Otro']];
+
+// 'hoy' / 'ayer' / 'el martes' según cuántos días pasaron desde la fecha
+export const diaRel = (fecha: string, hoy: string) => { const n = diffDays(hoy, fecha); return n <= 0 ? 'hoy' : n === 1 ? 'ayer' : 'el ' + DIAS[parseD(fecha).getDay()]; };
