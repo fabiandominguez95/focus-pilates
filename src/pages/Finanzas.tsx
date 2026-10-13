@@ -3,7 +3,7 @@ import { useApp } from '../store';
 import { Sheet, Field, Progress, useConfirm } from '../ui';
 import { resumenMes, ultimoSaldo, salario, allMonths } from '../fin';
 import { addMonthKey, diasHabilesMes, feriados, fmtDate, gs, monthLabel, monthOf, num, timeToMin, uid, daysInMonth, parseD, DIAS3, hm } from '../util';
-import { buildIndex } from '../logic';
+import { buildIndex, claseTerminada } from '../logic';
 
 function NumInput({ value, onSave, disabled, className }: { value: any; onSave: (n: number) => void; disabled?: boolean; className?: string }) {
   const [v, setV] = useState(String(Math.round(Number(value) || 0))); useEffect(() => setV(String(Math.round(Number(value) || 0))), [value]);
@@ -18,6 +18,58 @@ export function useHorasEstimadas(m: string) {
     d.clases.forEach((c: any) => { if (!c.fecha.startsWith(m) || !(c.estado === 'agendada' || c.estado === 'asistio')) return; const pid = c.profesora_id || fija; (per[pid] ||= new Set()).add(c.fecha + c.hora); });
     const out: Record<string, number> = {}; Object.keys(per).forEach((k) => (out[k] = per[k].size)); return out;
   }, [d.clases, d.profesoras, m]);
+}
+
+// Salario que se va devengando durante el mes (según las horas ya dadas) y proyectado a fin de mes (según todas las agendadas)
+export function useSalarioMes(m: string) {
+  const { d, cfg, hoy } = useApp(); const [fer, setFer] = useState<string[]>([]);
+  useEffect(() => { feriados(m.slice(0, 4), cfg.pais).then((r) => setFer(r.list.map(([f]) => f).filter((f) => f.startsWith(m)))); }, [m, cfg.pais]);
+  return useMemo(() => {
+    const cierre = d.cierres.find((c: any) => c.mes === m); const dias = Number(cierre?.dias_habiles) || diasHabilesMes(m, cfg.dias_habiles_semana, fer) || 1;
+    const horasDia = (timeToMin(cfg.cierre) - timeToMin(cfg.apertura)) / 60; const fijas = d.profesoras.filter((p: any) => p.tipo === 'fija' && p.activa !== false); const fijaId = fijas[0]?.id;
+    const todas: Record<string, Set<string>> = {}; const dadas: Record<string, Set<string>> = {};
+    d.clases.forEach((c: any) => {
+      if (!c.fecha.startsWith(m) || !(c.estado === 'agendada' || c.estado === 'asistio')) return; const pid = c.profesora_id || fijaId; const k = c.fecha + c.hora;
+      (todas[pid] ||= new Set()).add(k); if (c.estado === 'asistio' || claseTerminada(c, hoy, undefined, cfg.duracion_min)) (dadas[pid] ||= new Set()).add(k);
+    });
+    const egSal = d.egresos.find((e: any) => e.mes === m && e.tipo === 'salario'); const sup = (Number(egSal?.detalle?.suplencias) || 0) * (Number(cfg.monto_suplente) || 0);
+    const calc = (src: Record<string, Set<string>>) => fijas.reduce((a: number, p: any) => a + salario(Number(p.salario_base) || 0, dias, src[p.id]?.size || 0, horasDia), 0) + sup;
+    return { devengado: calc(dadas), proyectado: calc(todas) };
+  }, [d.clases, d.profesoras, d.cierres, d.egresos, cfg, hoy, m, fer]);
+}
+
+// Cuánto falta para pagar el mes, y con qué se cubre: este mes vs. ganancia de meses anteriores
+function Cobertura({ m, r, cerrada }: { m: string; r: any; cerrada: boolean }) {
+  const { d, hoy } = useApp(); const sal = useSalarioMes(m);
+  const esActual = m >= monthOf(hoy);
+  const otros = r.egr.filter((e: any) => e.tipo !== 'salario').reduce((a: number, e: any) => a + (Number(e.monto) || 0), 0);
+  const salReal = r.egr.filter((e: any) => e.tipo === 'salario').reduce((a: number, e: any) => a + (Number(e.monto) || 0), 0);
+  const metaHoy = cerrada || !esActual ? r.egresos : otros + sal.devengado; const metaFin = cerrada || !esActual ? r.egresos : otros + Math.max(sal.proyectado, 0);
+  const reserva = useMemo(() => { const meses = allMonths(d, hoy).filter((x) => x < m); return Math.max(0, meses.reduce((a, x) => a + resumenMes(d, x).balance, 0)); }, [d, hoy, m]);
+  const conMes = Math.min(r.ingresos, metaHoy); const falta0 = Math.max(0, metaHoy - conMes); const conReserva = Math.min(reserva, falta0); const falta = falta0 - conReserva;
+  const escala = Math.max(metaFin, metaHoy, r.ingresos, 1); const w = (x: number) => Math.max(0, Math.min(100, (x / escala) * 100)) + '%';
+  const titulo = metaHoy <= 0 ? 'Todavía no hay gastos cargados' : falta === 0 && conReserva === 0 ? '✓ Este mes ya cubre sus gastos' : falta === 0 ? 'Se cubre, pero usando ganancia de meses anteriores' : 'Todavía falta para cubrir el mes';
+  return (
+    <section className="box cob">
+      <div className="sec-head"><h3>¿Cuánto falta para pagar el mes?</h3></div>
+      <div className={'cob-t ' + (falta > 0 ? 'neg' : conReserva > 0 ? 'mid' : 'pos')}>{titulo}</div>
+      <div className="cob-bar">
+        <i className="cob-a" style={{ width: w(conMes) }} /><i className="cob-b" style={{ width: w(conReserva), left: w(conMes) }} />{falta > 0 && <i className="cob-f" style={{ left: w(conMes + conReserva), width: w(falta), opacity: .55 }} />}
+        {metaFin > metaHoy && <i className="cob-c" style={{ left: w(metaHoy), width: w(metaFin - metaHoy) }} />}
+        {metaHoy > 0 && <u className="cob-tick" style={{ left: w(metaHoy) }} />}
+      </div>
+      <div className="cob-leg">
+        <span><i className="cob-a" /> Con este mes <b>{gs(conMes)}</b></span>
+        {conReserva > 0 && <span><i className="cob-b" /> Con ganancia de meses anteriores <b>{gs(conReserva)}</b></span>}
+        {falta > 0 && <span><i className="cob-f" /> Falta <b>{gs(falta)}</b></span>}
+      </div>
+      <div className="kv"><span>Gastos {cerrada || !esActual ? 'del mes' : 'de hoy'} ({gs(otros)} + salarios {gs(cerrada || !esActual ? salReal : sal.devengado)})</span><b>{gs(metaHoy)}</b></div>
+      {metaFin > metaHoy && <div className="kv"><span>Proyectado a fin de mes (salarios suben con las clases)</span><b>{gs(metaFin)}</b></div>}
+      <div className="kv"><span>Ingresos de este mes</span><b>{gs(r.ingresos)}</b></div>
+      {r.ingresos > metaHoy && metaHoy > 0 && <div className="kv"><span>Sobra de este mes</span><b>{gs(r.ingresos - metaHoy)}</b></div>}
+      <div className="muted small">Ganancia acumulada de meses anteriores disponible: {gs(reserva)}. El salario se calcula con las horas ya dadas y va subiendo; la franja clara es lo que aún se suma hasta fin de mes.</div>
+    </section>
+  );
 }
 
 export function SalarioCalc({ m, onApply, cerrado }: { m: string; onApply?: (total: number, detalle: any, dias: number) => void; cerrado?: boolean }) {
@@ -88,6 +140,8 @@ export default function Finanzas() {
         <div className={'kpi ' + (r.balance >= 0 ? 'pos' : 'neg')}><span>Balance</span><b>{gs(r.balance)}</b><small>{r.balance >= 0 ? 'ganancia' : 'pérdida'} del mes</small></div>
         <div className="kpi"><span>Equilibrio</span><b>{equilibrio} personas</b><small>ticket prom. {gs(ticket)}</small></div>
       </div>
+
+      <Cobertura m={m} r={r} cerrada={cerrada} />
 
       <section className="box">
         <div className="sec-head"><h3>Posición de cuenta</h3>{isAdmin && <button className="btn sm ghost" onClick={() => setSaldoEd(true)}>Actualizar</button>}</div>
