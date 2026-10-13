@@ -54,7 +54,7 @@ export default function Home({ openPersona }: { openPersona: (id: string) => voi
         <div className="list">
           {delDia.map((c: any) => {
             const p = idx.personaById.get(c.persona_id); const fin = claseTerminada(c, hoy, undefined, cfg.duracion_min);
-            const cls = (c.estado === 'asistio' ? 'done' : c.estado === 'ausente' ? (sinCulpa(c) ? 'cancel' : 'aus') : 't-' + c.tipo) + (p?.baneado ? ' ban' : '');
+            const cls = (c.estado === 'asistio' ? 'done' : c.estado === 'ausente' ? (sinCulpa(c) ? 'cancel' : 'aus') : 't-' + c.tipo) + (c.estado === 'ausente' ? ' rev' : '') + (p?.baneado ? ' ban' : '');
             return (
               <div key={c.id} className={'row-card ' + cls} onClick={() => setSel(c)}>
                 <div className="time">{hm(c.hora)}</div>
