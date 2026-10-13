@@ -41,7 +41,7 @@ export function useSalarioMes(m: string) {
 
 // Cuánto falta para pagar el mes, y con qué se cubre: este mes vs. ganancia de meses anteriores
 function Cobertura({ m, r, cerrada, pc, inclIng, setInclIng, inclSal, setInclSal }: { m: string; r: any; cerrada: boolean; pc: any; inclIng: boolean; setInclIng: (b: boolean) => void; inclSal: boolean; setInclSal: (b: boolean) => void }) {
-  const { d, hoy } = useApp(); const sal = useSalarioMes(m);
+  const { d, hoy } = useApp(); const sal = useSalarioMes(m); const [det, setDet] = useState(false);
   const esActual = m >= monthOf(hoy);
   const otros = r.egr.filter((e: any) => e.tipo !== 'salario').reduce((a: number, e: any) => a + (Number(e.monto) || 0), 0);
   const salReal = r.egr.filter((e: any) => e.tipo === 'salario').reduce((a: number, e: any) => a + (Number(e.monto) || 0), 0);
@@ -53,6 +53,9 @@ function Cobertura({ m, r, cerrada, pc, inclIng, setInclIng, inclSal, setInclSal
   return (
     <section className="box cob">
       <div className="sec-head"><h3>¿Cuánto falta para pagar el mes?</h3></div>
+      {est && <div className="chips wrap cob-chips"><span className="muted small">Estimar:</span>
+        {pc.futuro && pc.faltan.length > 0 && <button className={'chip sm' + (inclIng ? ' on' : '')} onClick={() => setInclIng(!inclIng)}>{inclIng ? '✓ ' : ''}Renovaciones +{gs(pc.porCobrar)}</button>}
+        <button className={'chip sm' + (inclSal ? ' on' : '')} onClick={() => setInclSal(!inclSal)}>{inclSal ? '✓ ' : ''}Salario a fin de mes {gs(Math.max(sal.proyectado, 0))}</button></div>}
       <div className={'cob-t ' + (falta > 0 ? 'neg' : conReserva > 0 ? 'mid' : 'pos')}>{titulo}</div>
       <div className="cob-bar">
         <i className="cob-a" style={{ width: w(conMes) }} /><i className="cob-b" style={{ width: w(conReserva), left: w(conMes) }} />{falta > 0 && <i className="cob-f" style={{ left: w(conMes + conReserva), width: w(falta), opacity: .55 }} />}
@@ -64,14 +67,11 @@ function Cobertura({ m, r, cerrada, pc, inclIng, setInclIng, inclSal, setInclSal
         {conReserva > 0 && <span><i className="cob-b" /> Con ganancia de meses anteriores <b>{gs(conReserva)}</b></span>}
         {falta > 0 && <span><i className="cob-f" /> Falta <b>{gs(falta)}</b></span>}
       </div>
-      <div className="kv"><span>Gastos {!est ? 'del mes' : inclSal ? 'estimados a fin de mes' : 'de hoy'} ({gs(otros)} + salarios {gs(!est ? salReal : inclSal ? Math.max(sal.proyectado, 0) : sal.devengado)})</span><b>{gs(metaHoy)}</b></div>
+      <div className="kv" onClick={() => setDet(!det)} style={{ cursor: 'pointer' }}><span>{det ? '▾' : '▸'} Gastos {!est ? 'del mes' : inclSal ? 'estimados a fin de mes' : 'de hoy'} ({gs(otros)} + salarios {gs(!est ? salReal : inclSal ? Math.max(sal.proyectado, 0) : sal.devengado)})</span><b>{gs(metaHoy)}</b></div>
+      {det && r.egr.filter((e: any) => e.tipo !== 'salario').map((e: any) => <div className="kv small muted" key={e.id}><span>· {e.concepto}</span><b>{gs(e.monto)}</b></div>)}
       {metaFin > metaHoy && !inclSal && <div className="kv"><span>Proyectado a fin de mes (salarios suben con las clases)</span><b>{gs(metaFin)}</b></div>}
       <div className="kv"><span>Ingresos de este mes{inclIng && pc.futuro ? ' (con estimado)' : ''}</span><b>{gs(r.ingresos)}</b></div>
       {r.ingresos > metaHoy && metaHoy > 0 && <div className="kv"><span>Sobra de este mes</span><b>{gs(r.ingresos - metaHoy)}</b></div>}
-      {est && <div className="cob-opts">
-        {pc.futuro && pc.faltan.length > 0 && <label><input type="checkbox" checked={inclIng} onChange={(e) => setInclIng(e.target.checked)} /> Sumar renovaciones estimadas ({gs(pc.porCobrar)})</label>}
-        <label><input type="checkbox" checked={inclSal} onChange={(e) => setInclSal(e.target.checked)} /> Usar salario estimado a fin de mes ({gs(Math.max(sal.proyectado, 0))})</label>
-      </div>}
       <div className="muted small">Ganancia acumulada de meses anteriores disponible: {gs(reserva)}. El salario se calcula con las horas ya dadas y va subiendo; la franja clara es lo que aún se suma hasta fin de mes.</div>
     </section>
   );
