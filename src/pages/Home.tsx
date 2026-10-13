@@ -107,7 +107,8 @@ export default function Home({ openPersona }: { openPersona: (id: string) => voi
             <div key={pid} className="row-card t-nodada" style={{ alignItems: 'flex-start' }}>
               <div className="grow"><b>{idx.personaById.get(pid)?.nombre}{cs.length > 1 ? ` · ${cs.length} clases` : ''}</b>
                 <div className="small muted">{min === 999 ? 'sin vencimiento' : min === 0 ? 'último día' : `quedan ${min} día${min === 1 ? '' : 's'} para la más antigua`}</div>
-                <div className="rec-chips">{cs.map((c: any) => <button key={c.id} onClick={() => setSel(c)}>{fmtDate(c.fecha)} · {motivoLabel(c.motivo_ausencia)}</button>)}</div></div></div>))}</div>
+                <div className="rec-chips">{cs.map((c: any) => <button key={c.id} onClick={() => setSel(c)}>{fmtDate(c.fecha)} · {motivoLabel(c.motivo_ausencia)}</button>)}</div></div>{(() => { const pp = idx.personaById.get(pid); const ref = hoy; const lista = cs.map((c: any) => 'la del ' + fmtDate(c.fecha)).join(', ').replace(/, ([^,]*)$/, ' y $1'); const plazo = min === 999 ? '' : min === 0 ? ' Hoy es el último día para la más antigua.' : ` Te quedan ${min} día${min === 1 ? '' : 's'} para la que vence primero.`;
+              return pp ? <WaDot done={avisosSet.has('recup_pendientes|' + ref + '|' + pid)} onUndo={() => undoWa(pid, 'recup_pendientes', ref)} onClick={() => wa(pp, 'recuperar_pendientes', { fechas: lista, plazo }, { tipo: 'recup_pendientes', ref })} /> : null; })()}</div>))}</div>
           <MoreBtn k="rec" n={recPersonas.length} /></>}</section>
       )}
 
