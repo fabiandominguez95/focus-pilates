@@ -75,11 +75,11 @@ function Cobertura({ m, r, cerrada }: { m: string; r: any; cerrada: boolean }) {
 
 
 // Por cobrar: quiénes deberían renovar este mes y cuánto entraría; y quiénes ya pagaron
-function PorCobrar({ m, r }: { m: string; r: any }) {
-  const { d, cfg, hoy } = useApp(); const wa = useWhats(); const [open, setOpen] = useState(false);
+function usePorCobrar(m: string, r: any) {
+  const { d, cfg, hoy } = useApp();
   const idx = useMemo(() => buildIndex(d), [d]); const finMes = m + '-' + String(daysInMonth(m)).padStart(2, '0');
   const futuro = m >= monthOf(hoy);
-  const { listos, faltan } = useMemo(() => {
+  return useMemo(() => {
     const listos: any[] = [], faltan: any[] = []; const vistos = new Set<string>();
     r.pagos.forEach((s: any) => { if (s.tipo === 'unica' || vistos.has(s.persona_id)) return; vistos.add(s.persona_id); listos.push({ p: idx.personaById.get(s.persona_id), s, monto: Number(s.pago_monto) || 0 }); });
     if (futuro) d.personas.forEach((p: any) => {
@@ -91,19 +91,26 @@ function PorCobrar({ m, r }: { m: string; r: any }) {
       if (dueS <= finMes) faltan.push({ p, s, monto, vence: dueS, atraso: Math.max(0, e.atraso), impago: false });
     });
     faltan.sort((a, b) => a.vence.localeCompare(b.vence));
-    return { listos, faltan };
+    const porCobrar = faltan.reduce((a, x) => a + x.monto, 0);
+    return { listos, faltan, porCobrar, futuro };
   }, [d, idx, cfg, hoy, m, r.pagos, futuro, finMes]);
-  const porCobrar = faltan.reduce((a, x) => a + x.monto, 0); const cobrado = r.ingSubs; const total = cobrado + porCobrar;
+}
+
+function PorCobrar({ m, r, pc, incl, setIncl }: { m: string; r: any; pc: any; incl: boolean; setIncl: (b: boolean) => void }) {
+  const { hoy } = useApp(); const wa = useWhats(); const [open, setOpen] = useState(false);
+  const { listos, faltan, porCobrar, futuro } = pc;
+  const cobrado = r.ingSubs; const total = cobrado + porCobrar;
   if (!futuro && !listos.length) return null;
   const pct = total ? Math.min(100, (cobrado / total) * 100) : 0;
   return (
     <section className="box cob">
-      <div className="sec-head"><h3>Por cobrar este mes</h3><button className="btn sm ghost" onClick={() => setOpen(true)}>Ver quiénes</button></div>
+      <div className="sec-head"><h3>Estimado de renovaciones</h3><button className="btn sm ghost" onClick={() => setOpen(true)}>Ver quiénes</button></div>
       {futuro ? <div className="cob-t">{faltan.length ? `Si renuevan las ${faltan.length} personas que faltan, entran ${gs(porCobrar)} más` : 'No quedan renovaciones por esperar este mes'}</div> : <div className="cob-t">Cobrado del mes por suscripciones</div>}
       <div className="cob-bar" onClick={() => setOpen(true)} style={{ cursor: 'pointer' }}>
         <i className="cob-a" style={{ width: pct + '%' }} />{pct < 100 && <i className="cob-f" style={{ left: pct + '%', width: (100 - pct) + '%', opacity: .55 }} />}
       </div>
       <div className="cob-leg"><span><i className="cob-a" /> Ya cobrado <b>{gs(cobrado)}</b> · {listos.length} {listos.length === 1 ? 'persona' : 'personas'}</span>{futuro && <span><i className="cob-f" /> Falta (si renuevan) <b>{gs(porCobrar)}</b> · {faltan.length}</span>}</div>
+      {futuro && <label className="kv" style={{ cursor: 'pointer' }}><span>Sumar estos estimados al balance</span><input type="checkbox" checked={incl} onChange={(e) => setIncl(e.target.checked)} /></label>}
       {futuro && <div className="kv"><span>Total posible de suscripciones</span><b>{gs(total)}</b></div>}
       {futuro && <div className="muted small">Estimado con el precio de la última suscripción de cada persona inscripta. No es seguro que todas renueven.</div>}
       {open && <Sheet title={`Renovaciones · ${monthLabel(m)}`} onClose={() => setOpen(false)}>
@@ -156,7 +163,8 @@ export default function Finanzas() {
   const { d, cfg, hoy, upd, ins, toast, isAdmin, reload } = useApp();
   const { ask, node } = useConfirm();
   const [m, setM] = useState(monthOf(hoy)); const [sum, setSum] = useState<Set<string>>(new Set()); const [add, setAdd] = useState(false); const [sim, setSim] = useState(false); const [cierre, setCierre] = useState(false); const [verPagos, setVerPagos] = useState(false); const [saldoEd, setSaldoEd] = useState(false);
-  const r = useMemo(() => resumenMes(d, m), [d, m]); const cerrada = d.cierres.find((c: any) => c.mes === m)?.estado === 'cerrado';
+  const r0 = useMemo(() => resumenMes(d, m), [d, m]); const [incl, setIncl] = useState(false); const pc = usePorCobrar(m, r0);
+  const extra = incl && pc.futuro ? pc.porCobrar : 0; const r = useMemo(() => extra ? { ...r0, ingresos: r0.ingresos + extra, balance: r0.balance + extra } : r0, [r0, extra]); const cerrada = d.cierres.find((c: any) => c.mes === m)?.estado === 'cerrado';
   const idx = useMemo(() => buildIndex(d), [d]);
   const saldo = ultimoSaldo(d); const neto = (Number(saldo?.monto) || 0) - r.pend;
   const pagados = r.egr.filter((e: any) => e.pagado).length; const prog = r.egr.length ? pagados / r.egr.length : 0;
@@ -185,12 +193,12 @@ export default function Finanzas() {
       <div className="kpis">
         <div className="kpi"><span>Ingresos</span><b>{gs(r.ingresos)}</b><small>{r.nPagos} pagos{r.ingVentas ? ` + ventas ${gs(r.ingVentas)}` : ''}</small></div>
         <div className="kpi"><span>Egresos</span><b>{gs(r.egresos)}</b><small>costo operativo</small></div>
-        <div className={'kpi ' + (r.balance >= 0 ? 'pos' : 'neg')}><span>Balance</span><b>{gs(r.balance)}</b><small>{r.balance >= 0 ? 'ganancia' : 'pérdida'} del mes</small></div>
+        <div className={'kpi ' + (r.balance >= 0 ? 'pos' : 'neg')}><span>Balance{extra ? ' est.' : ''}</span><b>{gs(r.balance)}</b><small>{extra ? 'incluye ' + gs(extra) + ' estimados' : (r.balance >= 0 ? 'ganancia' : 'pérdida') + ' del mes'}</small></div>
         <div className="kpi"><span>Equilibrio</span><b>{equilibrio} personas</b><small>ticket prom. {gs(ticket)}</small></div>
       </div>
 
       <Cobertura m={m} r={r} cerrada={cerrada} />
-      <PorCobrar m={m} r={r} />
+      <PorCobrar m={m} r={r0} pc={pc} incl={incl} setIncl={setIncl} />
 
       <section className="box">
         <div className="sec-head"><h3>Posición de cuenta</h3>{isAdmin && <button className="btn sm ghost" onClick={() => setSaldoEd(true)}>Actualizar</button>}</div>
