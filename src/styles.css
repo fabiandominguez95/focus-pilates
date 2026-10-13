@@ -151,3 +151,6 @@ html,body{overscroll-behavior-y:contain}
 .cob-a{background:var(--sage)}.cob-b{background:#e0a93b}.cob-f{background:var(--neg)}.cob-c{background:repeating-linear-gradient(45deg,rgba(0,0,0,.14),rgba(0,0,0,.14) 4px,transparent 4px,transparent 8px)}
 .cob-tick{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--ink);opacity:.7}
 .cob-leg{display:flex;flex-direction:column;gap:4px;margin:10px 0;font-size:13.5px}.cob-leg span{display:flex;align-items:center;gap:6px}.cob-leg i{width:12px;height:12px;border-radius:4px;display:inline-block;flex:none}.cob-leg b{margin-left:auto}
+.cob-opts{display:flex;flex-direction:column;gap:4px;margin:8px 0 4px;font-size:12px;color:var(--muted,#777)}
+.cob-opts label{display:flex;align-items:center;gap:6px;cursor:pointer}
+.cob-opts input{width:14px;height:14px;margin:0}

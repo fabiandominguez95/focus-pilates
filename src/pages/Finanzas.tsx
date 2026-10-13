@@ -40,12 +40,12 @@ export function useSalarioMes(m: string) {
 }
 
 // Cuánto falta para pagar el mes, y con qué se cubre: este mes vs. ganancia de meses anteriores
-function Cobertura({ m, r, cerrada }: { m: string; r: any; cerrada: boolean }) {
+function Cobertura({ m, r, cerrada, pc, inclIng, setInclIng, inclSal, setInclSal }: { m: string; r: any; cerrada: boolean; pc: any; inclIng: boolean; setInclIng: (b: boolean) => void; inclSal: boolean; setInclSal: (b: boolean) => void }) {
   const { d, hoy } = useApp(); const sal = useSalarioMes(m);
   const esActual = m >= monthOf(hoy);
   const otros = r.egr.filter((e: any) => e.tipo !== 'salario').reduce((a: number, e: any) => a + (Number(e.monto) || 0), 0);
   const salReal = r.egr.filter((e: any) => e.tipo === 'salario').reduce((a: number, e: any) => a + (Number(e.monto) || 0), 0);
-  const metaHoy = cerrada || !esActual ? r.egresos : otros + sal.devengado; const metaFin = cerrada || !esActual ? r.egresos : otros + Math.max(sal.proyectado, 0);
+  const est = !cerrada && esActual; const metaHoy = !est ? r.egresos : otros + (inclSal ? Math.max(sal.proyectado, 0) : sal.devengado); const metaFin = !est ? r.egresos : otros + Math.max(sal.proyectado, 0);
   const reserva = useMemo(() => { const meses = allMonths(d, hoy).filter((x) => x < m); return Math.max(0, meses.reduce((a, x) => a + resumenMes(d, x).balance, 0)); }, [d, hoy, m]);
   const conMes = Math.min(r.ingresos, metaHoy); const falta0 = Math.max(0, metaHoy - conMes); const conReserva = Math.min(reserva, falta0); const falta = falta0 - conReserva;
   const escala = Math.max(metaFin, metaHoy, r.ingresos, 1); const w = (x: number) => Math.max(0, Math.min(100, (x / escala) * 100)) + '%';
@@ -64,10 +64,14 @@ function Cobertura({ m, r, cerrada }: { m: string; r: any; cerrada: boolean }) {
         {conReserva > 0 && <span><i className="cob-b" /> Con ganancia de meses anteriores <b>{gs(conReserva)}</b></span>}
         {falta > 0 && <span><i className="cob-f" /> Falta <b>{gs(falta)}</b></span>}
       </div>
-      <div className="kv"><span>Gastos {cerrada || !esActual ? 'del mes' : 'de hoy'} ({gs(otros)} + salarios {gs(cerrada || !esActual ? salReal : sal.devengado)})</span><b>{gs(metaHoy)}</b></div>
-      {metaFin > metaHoy && <div className="kv"><span>Proyectado a fin de mes (salarios suben con las clases)</span><b>{gs(metaFin)}</b></div>}
-      <div className="kv"><span>Ingresos de este mes</span><b>{gs(r.ingresos)}</b></div>
+      <div className="kv"><span>Gastos {!est ? 'del mes' : inclSal ? 'estimados a fin de mes' : 'de hoy'} ({gs(otros)} + salarios {gs(!est ? salReal : inclSal ? Math.max(sal.proyectado, 0) : sal.devengado)})</span><b>{gs(metaHoy)}</b></div>
+      {metaFin > metaHoy && !inclSal && <div className="kv"><span>Proyectado a fin de mes (salarios suben con las clases)</span><b>{gs(metaFin)}</b></div>}
+      <div className="kv"><span>Ingresos de este mes{inclIng && pc.futuro ? ' (con estimado)' : ''}</span><b>{gs(r.ingresos)}</b></div>
       {r.ingresos > metaHoy && metaHoy > 0 && <div className="kv"><span>Sobra de este mes</span><b>{gs(r.ingresos - metaHoy)}</b></div>}
+      {est && <div className="cob-opts">
+        {pc.futuro && pc.faltan.length > 0 && <label><input type="checkbox" checked={inclIng} onChange={(e) => setInclIng(e.target.checked)} /> Sumar renovaciones estimadas ({gs(pc.porCobrar)})</label>}
+        <label><input type="checkbox" checked={inclSal} onChange={(e) => setInclSal(e.target.checked)} /> Usar salario estimado a fin de mes ({gs(Math.max(sal.proyectado, 0))})</label>
+      </div>}
       <div className="muted small">Ganancia acumulada de meses anteriores disponible: {gs(reserva)}. El salario se calcula con las horas ya dadas y va subiendo; la franja clara es lo que aún se suma hasta fin de mes.</div>
     </section>
   );
@@ -96,7 +100,7 @@ function usePorCobrar(m: string, r: any) {
   }, [d, idx, cfg, hoy, m, r.pagos, futuro, finMes]);
 }
 
-function PorCobrar({ m, r, pc, incl, setIncl }: { m: string; r: any; pc: any; incl: boolean; setIncl: (b: boolean) => void }) {
+function PorCobrar({ m, r, pc }: { m: string; r: any; pc: any }) {
   const { hoy } = useApp(); const wa = useWhats(); const [open, setOpen] = useState(false);
   const { listos, faltan, porCobrar, futuro } = pc;
   const cobrado = r.ingSubs; const total = cobrado + porCobrar;
@@ -110,7 +114,6 @@ function PorCobrar({ m, r, pc, incl, setIncl }: { m: string; r: any; pc: any; in
         <i className="cob-a" style={{ width: pct + '%' }} />{pct < 100 && <i className="cob-f" style={{ left: pct + '%', width: (100 - pct) + '%', opacity: .55 }} />}
       </div>
       <div className="cob-leg"><span><i className="cob-a" /> Ya cobrado <b>{gs(cobrado)}</b> · {listos.length} {listos.length === 1 ? 'persona' : 'personas'}</span>{futuro && <span><i className="cob-f" /> Falta (si renuevan) <b>{gs(porCobrar)}</b> · {faltan.length}</span>}</div>
-      {futuro && <label className="kv" style={{ cursor: 'pointer' }}><span>Sumar estos estimados al balance</span><input type="checkbox" checked={incl} onChange={(e) => setIncl(e.target.checked)} /></label>}
       {futuro && <div className="kv"><span>Total posible de suscripciones</span><b>{gs(total)}</b></div>}
       {futuro && <div className="muted small">Estimado con el precio de la última suscripción de cada persona inscripta. No es seguro que todas renueven.</div>}
       {open && <Sheet title={`Renovaciones · ${monthLabel(m)}`} onClose={() => setOpen(false)}>
@@ -163,8 +166,11 @@ export default function Finanzas() {
   const { d, cfg, hoy, upd, ins, toast, isAdmin, reload } = useApp();
   const { ask, node } = useConfirm();
   const [m, setM] = useState(monthOf(hoy)); const [sum, setSum] = useState<Set<string>>(new Set()); const [add, setAdd] = useState(false); const [sim, setSim] = useState(false); const [cierre, setCierre] = useState(false); const [verPagos, setVerPagos] = useState(false); const [saldoEd, setSaldoEd] = useState(false);
-  const r0 = useMemo(() => resumenMes(d, m), [d, m]); const [incl, setIncl] = useState(false); const pc = usePorCobrar(m, r0);
-  const extra = incl && pc.futuro ? pc.porCobrar : 0; const r = useMemo(() => extra ? { ...r0, ingresos: r0.ingresos + extra, balance: r0.balance + extra } : r0, [r0, extra]); const cerrada = d.cierres.find((c: any) => c.mes === m)?.estado === 'cerrado';
+  const r0 = useMemo(() => resumenMes(d, m), [d, m]); const [inclIng, setInclIng] = useState(false); const [inclSal, setInclSal] = useState(false); const pc = usePorCobrar(m, r0); const salE = useSalarioMes(m);
+  const cerrada = d.cierres.find((c: any) => c.mes === m)?.estado === 'cerrado';
+  const estOk = !cerrada && m >= monthOf(hoy); const extraIng = inclIng && pc.futuro ? pc.porCobrar : 0;
+  const salCargado = r0.egr.filter((e: any) => e.tipo === 'salario').reduce((a: number, e: any) => a + (Number(e.monto) || 0), 0); const extraEgr = inclSal && estOk ? Math.max(salE.proyectado, 0) - salCargado : 0;
+  const r = useMemo(() => (extraIng || extraEgr) ? { ...r0, ingresos: r0.ingresos + extraIng, egresos: r0.egresos + extraEgr, balance: r0.balance + extraIng - extraEgr } : r0, [r0, extraIng, extraEgr]);
   const idx = useMemo(() => buildIndex(d), [d]);
   const saldo = ultimoSaldo(d); const neto = (Number(saldo?.monto) || 0) - r.pend;
   const pagados = r.egr.filter((e: any) => e.pagado).length; const prog = r.egr.length ? pagados / r.egr.length : 0;
@@ -192,13 +198,13 @@ export default function Finanzas() {
       <div className="datebar"><button onClick={() => setM(addMonthKey(m, -1))}>‹</button><b>{monthLabel(m)}{cerrada ? ' · cerrado 🔒' : ''}</b><button onClick={() => setM(addMonthKey(m, 1))}>›</button><button className="chip" onClick={() => setM(monthOf(hoy))}>Hoy</button></div>
       <div className="kpis">
         <div className="kpi"><span>Ingresos</span><b>{gs(r.ingresos)}</b><small>{r.nPagos} pagos{r.ingVentas ? ` + ventas ${gs(r.ingVentas)}` : ''}</small></div>
-        <div className="kpi"><span>Egresos</span><b>{gs(r.egresos)}</b><small>costo operativo</small></div>
-        <div className={'kpi ' + (r.balance >= 0 ? 'pos' : 'neg')}><span>Balance{extra ? ' est.' : ''}</span><b>{gs(r.balance)}</b><small>{extra ? 'incluye ' + gs(extra) + ' estimados' : (r.balance >= 0 ? 'ganancia' : 'pérdida') + ' del mes'}</small></div>
+        <div className="kpi"><span>Egresos{extraEgr ? ' est.' : ''}</span><b>{gs(r.egresos)}</b><small>{extraEgr ? 'con salario estimado' : 'costo operativo'}</small></div>
+        <div className={'kpi ' + (r.balance >= 0 ? 'pos' : 'neg')}><span>Balance{extraIng || extraEgr ? ' est.' : ''}</span><b>{gs(r.balance)}</b><small>{extraIng || extraEgr ? 'con estimados' : (r.balance >= 0 ? 'ganancia' : 'pérdida') + ' del mes'}</small></div>
         <div className="kpi"><span>Equilibrio</span><b>{equilibrio} personas</b><small>ticket prom. {gs(ticket)}</small></div>
       </div>
 
-      <Cobertura m={m} r={r} cerrada={cerrada} />
-      <PorCobrar m={m} r={r0} pc={pc} incl={incl} setIncl={setIncl} />
+      <Cobertura m={m} r={r} cerrada={cerrada} pc={pc} inclIng={inclIng} setInclIng={setInclIng} inclSal={inclSal} setInclSal={setInclSal} />
+      <PorCobrar m={m} r={r0} pc={pc} />
 
       <section className="box">
         <div className="sec-head"><h3>Posición de cuenta</h3>{isAdmin && <button className="btn sm ghost" onClick={() => setSaldoEd(true)}>Actualizar</button>}</div>
