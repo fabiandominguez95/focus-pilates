@@ -99,9 +99,9 @@ export function TareaRow({ t, done, onWa, onUndo, onOpen, onMarcar, onCerrar, on
   const [menu, setMenu] = useState(false);
   const sub = t.k === 'previo' ? `${TK_LABEL.previo} · prueba ${fmtDate(t.c.fecha)} ${hm(t.c.hora)}` : t.k === 'hoy' ? `${TK_LABEL.hoy} · ${hm(t.c.hora)}` : `${TK_LABEL[t.k]} · prueba del ${fmtDate(t.c.fecha)}`;
   return (
-    <div className={'row-card plain check' + (done ? ' done' : '') + (t.vencida ? ' late' : '')} onClick={onOpen}>
+    <div className={'row-card plain check' + (done ? ' done' : '') + (t.vencida && !done ? ' late' : '')} onClick={onOpen}>
       <span className={'chk' + (done ? ' on' : '')}>{done ? '✓' : ''}</span>
-      <div className="grow"><b>{t.p.nombre}</b><div className="small muted">{sub}{t.vencida ? ' · pasó el horario' : ''}{t.reprog && !t.vencida ? ' · reprogramado: no se escribió en el horario' : ''}</div></div>
+      <div className="grow"><b>{t.p.nombre}</b><div className="small muted">{sub}{t.vencida && !done ? ' · pasó el horario' : ''}{t.reprog && !t.vencida && !done ? ' · reprogramado: no se escribió en el horario' : ''}</div></div>
       {t.serie && !done && <button className="btn ghost sm" onClick={(e) => { e.stopPropagation(); onCerrar(); }} title="Ya respondió: no se le insiste más y pasa a En espera en Seguimiento">Ya respondió</button>}
       {t.vencida && !done && <button className="btn ghost sm" onClick={(e) => { e.stopPropagation(); onMarcar(); }}>No se hizo</button>}
       <WaDot done={done} onUndo={onUndo} onClick={() => setMenu(true)} title="Marcar como avisado o escribir por WhatsApp" />
