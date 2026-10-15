@@ -24,6 +24,7 @@ export function useFeriadoSet() {
   return set;
 }
 
+const BUSY = new Set<string>(); // evita doble envío por doble toque
 export function useClassOps() {
   const { d, me, upd, ins, toast } = useApp();
   const profeDefault = me?.profesora_id || d.profesoras.find((p: any) => p.tipo === 'fija' && p.activa !== false)?.id || null;
@@ -36,11 +37,11 @@ export function useClassOps() {
     cambiarHora: (c: any, hora: string) => run(() => upd('clases', c.id, { hora, fecha_original: c.fecha_original || c.fecha, hora_original: c.hora_original || c.hora }), 'Hora cambiada solo por hoy'),
     reagendar: (c: any, fecha: string, hora: string) => run(() => upd('clases', c.id, { fecha, hora, estado: 'agendada', a_confirmar: false, fecha_original: c.fecha_original || c.fecha, hora_original: c.hora_original || c.hora }), 'Clase reagendada'),
     noRecupera: (c: any) => run(() => upd('clases', c.id, { ausencia_resolucion: 'no_recupera' }), 'Marcada como "no recupera"'),
-    recuperar: async (c: any, fecha: string, hora: string, excepcion: boolean) => run(async () => {
+    recuperar: async (c: any, fecha: string, hora: string, excepcion: boolean) => { if (BUSY.has('rec' + c.id)) return false; BUSY.add('rec' + c.id); setTimeout(() => BUSY.delete('rec' + c.id), 4000); return run(async () => {
       await ins('clases', { persona_id: c.persona_id, fecha, hora, tipo: c.tipo === 'prueba' ? 'prueba' : 'recuperacion', estado: 'agendada', recupera_de: c.id, fecha_original: c.fecha, hora_original: c.hora, excepcion, profesora_id: profeDefault });
       await upd('clases', c.id, { ausencia_resolucion: 'recuperada' });
-    }, excepcion ? 'Recuperación con excepción agendada' : 'Recuperación agendada'),
-    crear: (row: any) => run(async () => { await ins('clases', { estado: 'agendada', profesora_id: profeDefault, ...row }); }, 'Clase agendada'),
+    }, excepcion ? 'Recuperación con excepción agendada' : 'Recuperación agendada'); },
+    crear: (row: any) => { const k = 'new' + row.persona_id + row.fecha + row.hora; if (BUSY.has(k)) return Promise.resolve(false); BUSY.add(k); setTimeout(() => BUSY.delete(k), 4000); return run(async () => { await ins('clases', { estado: 'agendada', profesora_id: profeDefault, ...row }); }, 'Clase agendada'); },
     papelera: (c: any) => run(() => upd('clases', c.id, { deleted_at: new Date().toISOString() }), 'Enviada a papelera'),
   };
 }
