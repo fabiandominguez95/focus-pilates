@@ -5,6 +5,7 @@ import { resumenMes, ultimoSaldo, salario, allMonths } from '../fin';
 import { addMonthKey, diasHabilesMes, feriados, fmtDate, gs, monthLabel, monthOf, num, timeToMin, uid, daysInMonth, parseD, DIAS3, hm } from '../util';
 import { buildIndex, claseTerminada, estadoPersona } from '../logic';
 import { useWhats } from '../classes';
+import { useNoRenueva, NoRenuevaSheet } from '../norenueva';
 
 function NumInput({ value, onSave, disabled, className }: { value: any; onSave: (n: number) => void; disabled?: boolean; className?: string }) {
   const [v, setV] = useState(String(Math.round(Number(value) || 0))); useEffect(() => setV(String(Math.round(Number(value) || 0))), [value]);
@@ -80,29 +81,29 @@ function Cobertura({ m, r, cerrada, pc, inclIng, setInclIng, inclSal, setInclSal
 
 // Por cobrar: quiénes deberían renovar este mes y cuánto entraría; y quiénes ya pagaron
 function usePorCobrar(m: string, r: any) {
-  const { d, cfg, hoy } = useApp();
+  const { d, cfg, hoy } = useApp(); const nr = useNoRenueva();
   const idx = useMemo(() => buildIndex(d), [d]); const finMes = m + '-' + String(daysInMonth(m)).padStart(2, '0');
   const futuro = m >= monthOf(hoy);
   return useMemo(() => {
-    const listos: any[] = [], faltan: any[] = []; const vistos = new Set<string>();
+    const listos: any[] = [], faltan: any[] = [], noVan: any[] = []; const vistos = new Set<string>();
     r.pagos.forEach((s: any) => { if (s.tipo === 'unica' || vistos.has(s.persona_id)) return; vistos.add(s.persona_id); listos.push({ p: idx.personaById.get(s.persona_id), s, monto: Number(s.pago_monto) || 0 }); });
     if (futuro) d.personas.forEach((p: any) => {
       if (vistos.has(p.id)) return; const e = estadoPersona(p, idx, cfg, hoy); const s = e.sub; if (!s || s.tipo === 'unica' || e.stage !== 'inscripta') return;
       const subs = idx.subsByP.get(p.id) || []; if (subs.some((x: any) => x.tipo !== 'unica' && x.inicio > s.inicio)) return;
-      const pl = idx.planById.get(s.plan_id); const monto = Number(s.precio_final) || Number(pl?.precio) || 0;
-      if (!s.pago_fecha) { if (s.inicio <= finMes) faltan.push({ p, s, monto, vence: s.inicio, atraso: e.atraso, impago: true }); return; }
+      const pl = idx.planById.get(s.plan_id); const monto = Number(s.precio_final) || Number(pl?.precio) || 0; const mk = nr.marcado(p.id, s);
+      if (!s.pago_fecha) { if (s.inicio <= finMes) (mk ? noVan : faltan).push({ p, s, monto, vence: s.inicio, atraso: e.atraso, impago: true, motivo: mk?.motivo }); return; }
       const due = new Date(s.fin + 'T12:00:00'); due.setDate(due.getDate() + 1); const dueS = due.toISOString().slice(0, 10);
-      if (dueS <= finMes) faltan.push({ p, s, monto, vence: dueS, atraso: Math.max(0, e.atraso), impago: false });
+      if (dueS <= finMes) (mk ? noVan : faltan).push({ p, s, monto, vence: dueS, atraso: Math.max(0, e.atraso), impago: false, motivo: mk?.motivo });
     });
     faltan.sort((a, b) => a.vence.localeCompare(b.vence));
     const porCobrar = faltan.reduce((a, x) => a + x.monto, 0);
-    return { listos, faltan, porCobrar, futuro };
-  }, [d, idx, cfg, hoy, m, r.pagos, futuro, finMes]);
+    return { listos, faltan, noVan, porCobrar, futuro };
+  }, [d, idx, cfg, hoy, m, r.pagos, futuro, finMes, nr.map]);
 }
 
 function PorCobrar({ m, r, pc }: { m: string; r: any; pc: any }) {
   const { hoy } = useApp(); const wa = useWhats(); const [open, setOpen] = useState(false);
-  const { listos, faltan, porCobrar, futuro } = pc;
+  const { listos, faltan, noVan, porCobrar, futuro } = pc; const nrh = useNoRenueva(); const [nrT, setNrT] = useState<any>(null);
   const cobrado = r.ingSubs; const total = cobrado + porCobrar;
   if (!futuro && !listos.length) return null;
   const pct = total ? Math.min(100, (cobrado / total) * 100) : 0;
@@ -116,12 +117,15 @@ function PorCobrar({ m, r, pc }: { m: string; r: any; pc: any }) {
       <div className="cob-leg"><span><i className="cob-a" /> Ya cobrado <b>{gs(cobrado)}</b> · {listos.length} {listos.length === 1 ? 'persona' : 'personas'}</span>{futuro && <span><i className="cob-f" /> Falta (si renuevan) <b>{gs(porCobrar)}</b> · {faltan.length}</span>}</div>
       {futuro && <div className="kv"><span>Total posible de suscripciones</span><b>{gs(total)}</b></div>}
       {futuro && <div className="muted small">Estimado con el precio de la última suscripción de cada persona inscripta. No es seguro que todas renueven.</div>}
+      {nrT && <NoRenuevaSheet p={nrT.p} sub={nrT.sub} onClose={() => setNrT(null)} />}
       {open && <Sheet title={`Renovaciones · ${monthLabel(m)}`} onClose={() => setOpen(false)}>
         <div className="stack">
           {futuro && <><div className="sec-head"><h3>Faltan por renovar · {faltan.length}</h3><b>{gs(porCobrar)}</b></div>
             {faltan.length === 0 && <div className="muted small">Nadie pendiente.</div>}
             {faltan.map((x) => <div className="kv" key={x.p.id}><span><b>{x.p.nombre}</b><br /><small className="muted">{x.s.plan_nombre} · {x.impago ? 'sin pagar desde' : 'vence'} {fmtDate(x.impago ? x.vence : x.s.fin)}{x.vence < hoy ? ' · atrasada' : ''}</small></span>
-              <span className="row" style={{ gap: 8, alignItems: 'center' }}><b>{gs(x.monto)}</b><button className="btn sm ghost" onClick={() => wa(x.p, x.vence < hoy ? 'atraso' : 'renovacion', { vence: fmtDate(x.s.fin), plan: x.s.plan_nombre || 'plan' })}>WhatsApp</button></span></div>)}</>}
+              <span className="row" style={{ gap: 8, alignItems: 'center' }}><b>{gs(x.monto)}</b><button className="btn sm ghost" onClick={() => setNrT({ p: x.p, sub: x.s })}>No renovará</button><button className="btn sm ghost" onClick={() => wa(x.p, x.vence < hoy ? 'atraso' : 'renovacion', { vence: fmtDate(x.s.fin), plan: x.s.plan_nombre || 'plan' })}>WhatsApp</button></span></div>)}
+            {noVan.length > 0 && <><div className="sec-head"><h3>Ya dijeron que no renuevan · {noVan.length}</h3><b>{gs(noVan.reduce((a: number, x: any) => a + x.monto, 0))}</b></div>
+              {noVan.map((x: any) => <div className="kv" key={x.p.id}><span><b>{x.p.nombre}</b><br /><small className="muted">{x.s.plan_nombre} · {x.motivo || 'sin motivo'}</small></span><button className="btn sm ghost" onClick={() => nrh.deshacer(x.p.id)}>Deshacer</button></div>)}</>}</>}
           <div className="sec-head"><h3>Ya pagaron · {listos.length}</h3><b>{gs(cobrado)}</b></div>
           {listos.length === 0 && <div className="muted small">Todavía nadie este mes.</div>}
           {listos.map((x) => <div className="kv" key={x.s.id}><span><b>{x.p?.nombre || '—'}</b><br /><small className="muted">{x.s.plan_nombre} · pagó el {fmtDate(x.s.pago_fecha)}</small></span><b>{gs(x.monto)}</b></div>)}
