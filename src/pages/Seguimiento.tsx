@@ -5,7 +5,7 @@ import { Seg, Empty } from '../ui';
 import { useWhats } from '../classes';
 import { RenewSheet } from '../subs';
 import { useNoRenueva, NoRenuevaSheet } from '../norenueva';
-import { addDays, diffDays, fmtDate } from '../util';
+import { addDays, diffDays, fmtDate, hm, diaRel } from '../util';
 
 // Cálculo compartido con Home (para el check único "Revisar seguimiento")
 export function useSeguimiento() {
@@ -35,13 +35,14 @@ export function useSeguimiento() {
 
 export default function Seguimiento({ openPersona }: { openPersona: (id: string) => void }) {
   const { isAdmin } = useApp(); const sg = useSeguimiento();
-  const [tab, setTab] = useState<'pagos' | 'renov' | 'react'>('pagos');
+  const [tab, setTab] = useState<'pagos' | 'renov' | 'react' | 'pruebas'>('pagos');
   return (
     <div className="page"><header className="page-head"><h1>Seguimiento</h1></header>
-      <Seg value={tab} onChange={setTab} options={[['pagos', `Recordar pagos${sg.pagos.length ? ' · ' + sg.pagos.length : ''}`], ...(isAdmin ? [['renov', `Recordar renovaciones${sg.renov.length ? ' · ' + sg.renov.length : ''}`] as [any, string]] : []), ['react', 'Reactivar clientes']]} />
+      <Seg value={tab} onChange={setTab} options={[['pagos', `Recordar pagos${sg.pagos.length ? ' · ' + sg.pagos.length : ''}`], ...(isAdmin ? [['renov', `Recordar renovaciones${sg.renov.length ? ' · ' + sg.renov.length : ''}`] as [any, string]] : []), ['react', 'Reactivar clientes'], ['pruebas', 'Pruebas']]} />
       {tab === 'pagos' && <Pagos sg={sg} />}
       {tab === 'renov' && isAdmin && <Renov sg={sg} openPersona={openPersona} />}
       {tab === 'react' && <Reactivar openPersona={openPersona} />}
+      {tab === 'pruebas' && <Pruebas openPersona={openPersona} />}
     </div>
   );
 }
@@ -105,5 +106,31 @@ function Reactivar({ openPersona }: { openPersona: (id: string) => void }) {
       <button className="btn ghost sm" style={{ display: 'block', width: '100%', textAlign: 'left' }} onClick={() => setOpen({ ...open, nc: !open.nc })}>{open.nc ? '▾' : '▸'} No contactar ({noCont.length})</button>
       {open.nc && <div className="list dim" style={{ marginTop: 6 }}>{noCont.map((x: any) => <Fila key={x.p.id} x={x} sub="Marcado/a como no contactar" btn={isAdmin ? ['Devolver a la lista', () => devolverNc(x)] : null} />)}</div>}
     </div>}
+  </div>);
+}
+
+const RANGOS: [number, string][] = [[7, '7 días'], [15, '15 días'], [30, '30 días'], [60, '60 días'], [90, '90 días'], [365, '1 año']];
+function Pruebas({ openPersona }: { openPersona: (id: string) => void }) {
+  const { d, cfg, hoy } = useApp(); const idx = useMemo(() => buildIndex(d), [d]); const wa = useWhats(); const [dias, setDias] = useState(30);
+  const rows = useMemo(() => {
+    const desde = addDays(hoy, -dias);
+    return d.clases.filter((c: any) => c.tipo === 'prueba' && c.fecha >= desde).map((c: any) => { const p = idx.personaById.get(c.persona_id); return p ? { c, p, e: estadoPersona(p, idx, cfg, hoy) } : null; }).filter(Boolean) as any[];
+  }, [d.clases, idx, cfg, hoy, dias]);
+  const prox = rows.filter((x) => x.c.fecha >= hoy && x.c.estado === 'agendada').sort((a, b) => (a.c.fecha + a.c.hora).localeCompare(b.c.fecha + b.c.hora));
+  const pasadas = rows.filter((x) => !prox.includes(x)).sort((a, b) => (b.c.fecha + b.c.hora).localeCompare(a.c.fecha + a.c.hora));
+  const vinieron = pasadas.filter((x) => x.c.estado === 'asistio'); const insc = vinieron.filter((x) => x.e.stage === 'inscripta' || x.e.stage === 'unica');
+  const estado = (x: any) => x.c.estado === 'asistio' ? ['Asistió ✓', ''] : x.c.estado === 'ausente' ? ['No vino', 'neg'] : x.c.estado === 'agendada' ? [x.c.fecha < hoy ? 'Sin marcar' : 'Agendada', ''] : ['No se dio', ''];
+  const despues = (x: any) => x.e.stage === 'inscripta' ? 'Se inscribió ✓' : x.e.stage === 'unica' ? 'Clase única' : x.e.stage === 'no_renovo' ? 'Se inscribió y dejó' : x.c.estado === 'asistio' ? (x.e.stage === 'no_se_inscribio' ? 'No se inscribió' : 'En seguimiento') : '';
+  const Fila = ({ x }: { x: any }) => { const [lb, tone] = estado(x); const dsp = despues(x);
+    return (<div className="row-card plain" onClick={() => openPersona(x.p.id)}>
+      <div className="grow"><b>{x.p.nombre}</b><div className="small muted">{fmtDate(x.c.fecha)} · {hm(x.c.hora)} · <span style={tone ? { color: 'var(--neg)' } : undefined}>{lb}</span>{dsp ? ' · ' + dsp : ''}</div></div>
+      {x.p.celular && (x.c.estado === 'asistio' || x.c.estado === 'ausente') && !['inscripta', 'unica', 'no_renovo'].includes(x.e.stage) && <button className="btn sm ghost" onClick={(e) => { e.stopPropagation(); wa(x.p, x.c.estado === 'asistio' ? 'prueba_post1' : 'prueba_reag1', { dia: diaRel(x.c.fecha, hoy), hora: hm(x.c.hora), fecha: fmtDate(x.c.fecha) }); }}>WhatsApp</button>}
+    </div>); };
+  return (<div>
+    <div className="chips scroll">{RANGOS.map(([n, l]) => <button key={n} className={'chip' + (dias === n ? ' on' : '')} onClick={() => setDias(n)}>{l}</button>)}</div>
+    <div className="muted small pad">Últimos {dias === 365 ? '12 meses' : dias + ' días'}: {pasadas.length} pruebas · {vinieron.length} vinieron · {insc.length} se inscribieron{vinieron.length ? ` (${Math.round((insc.length / vinieron.length) * 100)}%)` : ''}.</div>
+    {rows.length === 0 && <Empty>No hay clases de prueba en este rango.</Empty>}
+    {prox.length > 0 && <><h3 className="pad">Próximas · {prox.length}</h3><div className="list">{prox.map((x) => <Fila key={x.c.id} x={x} />)}</div></>}
+    {pasadas.length > 0 && <><h3 className="pad">Realizadas / pasadas · {pasadas.length}</h3><div className="list">{pasadas.map((x) => <Fila key={x.c.id} x={x} />)}</div></>}
   </div>);
 }
