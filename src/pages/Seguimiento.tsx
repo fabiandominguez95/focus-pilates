@@ -109,28 +109,51 @@ function Reactivar({ openPersona }: { openPersona: (id: string) => void }) {
   </div>);
 }
 
-const RANGOS: [number, string][] = [[7, '7 días'], [15, '15 días'], [30, '30 días'], [60, '60 días'], [90, '90 días'], [365, '1 año']];
+const RANGOS: [number, string][] = [[7, '7 días'], [15, '15 días'], [30, '30 días'], [60, '60 días'], [90, '90 días'], [365, '1 año'], [0, 'Personalizado']];
+// Una fila por persona: cuenta la fecha en que agendó originalmente (para medir conversión de pauta), no sus reagendamientos.
 function Pruebas({ openPersona }: { openPersona: (id: string) => void }) {
-  const { d, cfg, hoy } = useApp(); const idx = useMemo(() => buildIndex(d), [d]); const wa = useWhats(); const [dias, setDias] = useState(30);
-  const rows = useMemo(() => {
-    const desde = addDays(hoy, -dias);
-    return d.clases.filter((c: any) => c.tipo === 'prueba' && c.fecha >= desde).map((c: any) => { const p = idx.personaById.get(c.persona_id); return p ? { c, p, e: estadoPersona(p, idx, cfg, hoy) } : null; }).filter(Boolean) as any[];
-  }, [d.clases, idx, cfg, hoy, dias]);
-  const prox = rows.filter((x) => x.c.fecha >= hoy && x.c.estado === 'agendada').sort((a, b) => (a.c.fecha + a.c.hora).localeCompare(b.c.fecha + b.c.hora));
-  const pasadas = rows.filter((x) => !prox.includes(x)).sort((a, b) => (b.c.fecha + b.c.hora).localeCompare(a.c.fecha + a.c.hora));
-  const vinieron = pasadas.filter((x) => x.c.estado === 'asistio'); const insc = vinieron.filter((x) => x.e.stage === 'inscripta' || x.e.stage === 'unica');
-  const estado = (x: any) => x.c.estado === 'asistio' ? ['Asistió ✓', ''] : x.c.estado === 'ausente' ? ['No vino', 'neg'] : x.c.estado === 'agendada' ? [x.c.fecha < hoy ? 'Sin marcar' : 'Agendada', ''] : ['No se dio', ''];
-  const despues = (x: any) => x.e.stage === 'inscripta' ? 'Se inscribió ✓' : x.e.stage === 'unica' ? 'Clase única' : x.e.stage === 'no_renovo' ? 'Se inscribió y dejó' : x.c.estado === 'asistio' ? (x.e.stage === 'no_se_inscribio' ? 'No se inscribió' : 'En seguimiento') : '';
-  const Fila = ({ x }: { x: any }) => { const [lb, tone] = estado(x); const dsp = despues(x);
+  const { d, cfg, hoy } = useApp(); const idx = useMemo(() => buildIndex(d), [d]); const wa = useWhats();
+  const [dias, setDias] = useState(30); const [desde, setDesde] = useState(addDays(hoy, -30)); const [hasta, setHasta] = useState(hoy); const [fil, setFil] = useState('todas');
+  const todas = useMemo(() => {
+    const by = new Map<string, any[]>(); d.clases.forEach((c: any) => { if (c.tipo === 'prueba') (by.get(c.persona_id) || by.set(c.persona_id, []).get(c.persona_id)!).push(c); });
+    const out: any[] = [];
+    by.forEach((cs, pid) => {
+      const p = idx.personaById.get(pid); if (!p) return;
+      const orig = cs.map((c) => c.fecha_original || c.fecha).sort()[0];
+      const asis = cs.filter((c) => c.estado === 'asistio').sort((a, b) => a.fecha.localeCompare(b.fecha))[0];
+      const prox = cs.filter((c) => c.estado === 'agendada' && c.fecha >= hoy).sort((a, b) => a.fecha.localeCompare(b.fecha))[0];
+      const last = [...cs].sort((a, b) => (b.fecha + b.hora).localeCompare(a.fecha + a.hora))[0];
+      const ref = asis || prox || last; const st = asis ? 'asistio' : prox ? 'agendada' : last.estado === 'ausente' ? 'ausente' : last.estado === 'agendada' ? 'sin_marcar' : 'no_dada';
+      out.push({ p, c: ref, orig, st, n: cs.length, reag: cs.length > 1 || cs.some((c) => c.fecha_original && c.fecha_original !== c.fecha), e: estadoPersona(p, idx, cfg, hoy) });
+    });
+    return out;
+  }, [d.clases, idx, cfg, hoy]);
+  const lo = dias ? addDays(hoy, -dias) : desde; const hi = dias ? '9999-12-31' : hasta;
+  const enRango = todas.filter((x) => x.orig >= lo && x.orig <= hi);
+  const conv = (x: any) => x.e.stage === 'inscripta' || x.e.stage === 'unica' || x.e.stage === 'no_renovo';
+  const FIL: [string, string, (x: any) => boolean][] = [
+    ['todas', 'Todas', () => true], ['insc', 'Se inscribieron', (x) => x.st === 'asistio' && conv(x)], ['seg', 'En seguimiento', (x) => x.st === 'asistio' && x.e.stage === 'prueba'],
+    ['noinsc', 'No se inscribieron', (x) => x.st === 'asistio' && x.e.stage === 'no_se_inscribio'], ['novino', 'No vinieron', (x) => x.st === 'ausente' || x.st === 'sin_marcar'], ['agen', 'Agendadas', (x) => x.st === 'agendada']];
+  const f = FIL.find((z) => z[0] === fil)![2]; const rows = enRango.filter(f);
+  const prox = rows.filter((x) => x.st === 'agendada').sort((a, b) => (a.c.fecha + a.c.hora).localeCompare(b.c.fecha + b.c.hora));
+  const pasadas = rows.filter((x) => x.st !== 'agendada').sort((a, b) => b.orig.localeCompare(a.orig));
+  const nAg = enRango.length; const nVin = enRango.filter((x) => x.st === 'asistio').length; const nIns = enRango.filter((x) => x.st === 'asistio' && conv(x)).length;
+  const pc = (a: number, b: number) => (b ? ` (${Math.round((a / b) * 100)}%)` : '');
+  const estado = (x: any) => x.st === 'asistio' ? ['Asistió ✓', ''] : x.st === 'ausente' ? ['No vino', 'neg'] : x.st === 'agendada' ? ['Agendada', ''] : x.st === 'sin_marcar' ? ['Sin marcar', 'neg'] : ['No se dio', ''];
+  const despues = (x: any) => x.st !== 'asistio' ? '' : x.e.stage === 'inscripta' ? 'Se inscribió ✓' : x.e.stage === 'unica' ? 'Clase única' : x.e.stage === 'no_renovo' ? 'Se inscribió y dejó' : x.e.stage === 'no_se_inscribio' ? 'No se inscribió' : 'En seguimiento';
+  const Fila = ({ x }: { x: any }) => { const [lb, tone] = estado(x); const dsp = despues(x); const difiere = x.c.fecha !== x.orig;
     return (<div className="row-card plain" onClick={() => openPersona(x.p.id)}>
-      <div className="grow"><b>{x.p.nombre}</b><div className="small muted">{fmtDate(x.c.fecha)} · {hm(x.c.hora)} · <span style={tone ? { color: 'var(--neg)' } : undefined}>{lb}</span>{dsp ? ' · ' + dsp : ''}</div></div>
-      {x.p.celular && (x.c.estado === 'asistio' || x.c.estado === 'ausente') && !['inscripta', 'unica', 'no_renovo'].includes(x.e.stage) && <button className="btn sm ghost" onClick={(e) => { e.stopPropagation(); wa(x.p, x.c.estado === 'asistio' ? 'prueba_post1' : 'prueba_reag1', { dia: diaRel(x.c.fecha, hoy), hora: hm(x.c.hora), fecha: fmtDate(x.c.fecha) }); }}>WhatsApp</button>}
+      <div className="grow"><b>{x.p.nombre}</b>
+        <div className="small muted">Agendó para {fmtDate(x.orig)} · <span style={tone ? { color: 'var(--neg)' } : undefined}>{lb}{difiere && x.st !== 'ausente' && x.st !== 'sin_marcar' ? ' ' + fmtDate(x.c.fecha) + ' ' + hm(x.c.hora) : ''}</span>{x.reag ? ' · reagendó' : ''}{dsp ? ' · ' + dsp : ''}</div></div>
+      {x.p.celular && (x.st === 'asistio' || x.st === 'ausente') && !conv(x) && <button className="btn sm ghost" onClick={(e) => { e.stopPropagation(); wa(x.p, x.st === 'asistio' ? 'prueba_post1' : 'prueba_reag1', { dia: diaRel(x.c.fecha, hoy), hora: hm(x.c.hora), fecha: fmtDate(x.c.fecha) }); }}>WhatsApp</button>}
     </div>); };
   return (<div>
     <div className="chips scroll">{RANGOS.map(([n, l]) => <button key={n} className={'chip' + (dias === n ? ' on' : '')} onClick={() => setDias(n)}>{l}</button>)}</div>
-    <div className="muted small pad">Últimos {dias === 365 ? '12 meses' : dias + ' días'}: {pasadas.length} pruebas · {vinieron.length} vinieron · {insc.length} se inscribieron{vinieron.length ? ` (${Math.round((insc.length / vinieron.length) * 100)}%)` : ''}.</div>
-    {rows.length === 0 && <Empty>No hay clases de prueba en este rango.</Empty>}
-    {prox.length > 0 && <><h3 className="pad">Próximas · {prox.length}</h3><div className="list">{prox.map((x) => <Fila key={x.c.id} x={x} />)}</div></>}
-    {pasadas.length > 0 && <><h3 className="pad">Realizadas / pasadas · {pasadas.length}</h3><div className="list">{pasadas.map((x) => <Fila key={x.c.id} x={x} />)}</div></>}
+    {dias === 0 && <div className="row2"><label className="small muted">Desde<input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} /></label><label className="small muted">Hasta<input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} /></label></div>}
+    <div className="chips scroll">{FIL.map(([k, l, fn]) => <button key={k} className={'chip' + (fil === k ? ' on' : '')} onClick={() => setFil(k)}>{l} <small>{enRango.filter(fn).length}</small></button>)}</div>
+    <div className="muted small pad">Por fecha en que agendaron: {nAg} personas · {nVin} vinieron{pc(nVin, nAg)} · {nIns} se inscribieron{pc(nIns, nAg)}. Una fila por persona, aunque haya reagendado.</div>
+    {rows.length === 0 && <Empty>No hay pruebas con este filtro.</Empty>}
+    {prox.length > 0 && <><h3 className="pad">Próximas · {prox.length}</h3><div className="list">{prox.map((x) => <Fila key={x.p.id} x={x} />)}</div></>}
+    {pasadas.length > 0 && <><h3 className="pad">Realizadas / pasadas · {pasadas.length}</h3><div className="list">{pasadas.map((x) => <Fila key={x.p.id} x={x} />)}</div></>}
   </div>);
 }
