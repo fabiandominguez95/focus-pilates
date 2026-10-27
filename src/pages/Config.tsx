@@ -8,6 +8,7 @@ import { fmtDate, gs, hm, monthLabel, DIAS } from '../util';
 import { allMonths } from '../fin';
 import { DEFAULT_TPL } from '../classes';
 import { paCfg } from '../pruebas';
+import { NotaSheet } from '../promo';
 
 const SECS: [string, string, string][] = [
   ['general', 'General', 'Horario, cupo, plazos, umbrales de atraso'], ['planes', 'Planes', 'Precios y planes'], ['promos', 'Promos y grupos', 'Descuentos'], ['pagos', 'Métodos de pago', ''],
@@ -31,11 +32,13 @@ export default function Config({ sec = '' }: { sec?: string }) {
 
 function Baneados() {
   const { d, upd, toast } = useApp(); const { ask, node } = useConfirm();
-  const lista = d.personas.filter((p: any) => p.baneado);
+  const lista = d.personas.filter((p: any) => p.baneado); const [notaP, setNotaP] = useState<any>(null);
   return (<div>{node}<div className="muted small pad">Las personas baneadas no aparecen en «Reactivar clientes» y se ven en negro. Podés desbanearlas cuando quieras.</div>
     {lista.length === 0 && <div className="muted pad">Nadie baneado/a.</div>}
     <div className="list">{lista.map((p: any) => <div className="row-card plain ban" key={p.id}><div className="grow"><b>{p.nombre}</b>{p.baneo_nota && <div className="small muted">{p.baneo_nota}</div>}</div>
-      <button className="btn sm" onClick={async () => { if (await ask(`¿Desbanear a ${p.nombre}?`)) { try { await upd('personas', p.id, { baneado: false, baneo_nota: null }); toast('Desbaneado/a'); } catch (e: any) { toast('Error: ' + e.message); } } }}>Desbanear</button></div>)}</div></div>);
+      <button className="btn sm ghost" onClick={() => setNotaP(p)}>Nota</button>
+      <button className="btn sm" onClick={async () => { if (await ask(`¿Desbanear a ${p.nombre}?`)) { try { await upd('personas', p.id, { baneado: false, baneo_nota: null }); toast('Desbaneado/a'); } catch (e: any) { toast('Error: ' + e.message); } } }}>Desbanear</button></div>)}</div>
+    {notaP && <NotaSheet title={`Nota · ${notaP.nombre}`} value={notaP.baneo_nota || ''} hint="Por qué se la baneó." onSave={(v) => upd('personas', notaP.id, { baneo_nota: v || null }).then(() => toast('Nota guardada'))} onClose={() => setNotaP(null)} />}</div>);
 }
 function Audiencias() {
   const { d, cfg } = useApp(); const hoy = new Date().toISOString().slice(0, 10);

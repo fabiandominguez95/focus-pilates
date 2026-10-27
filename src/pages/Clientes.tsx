@@ -7,6 +7,7 @@ import { RenewSheet, PagoSheet, grupoDe } from '../subs';
 import { diffDays, fmtDate, fmtDateY, gs, hm, normPhone, phonePretty, CANALES, DIAS3, fmtLong } from '../util';
 import { historial } from '../api';
 import { PersonaPicker } from '../picker';
+import { usePromo, PromoBadge, PromoAsk, NotaSheet } from '../promo';
 import { Facts } from './Reportes';
 import { NuevaPersona } from '../nueva';
 import { horasDisponibles } from '../logic';
@@ -64,6 +65,7 @@ export function PersonaSheet({ id, onClose }: { id: string; onClose: () => void 
   const { d, cfg, hoy, isAdmin, upd, toast } = useApp();
   const idx = useMemo(() => buildIndex(d), [d]);
   const p = idx.personaById.get(id); const wa = useWhats(); const { ask, node } = useConfirm();
+  const promo = usePromo(); const [askInv, setAskInv] = useState(false); const [banNota, setBanNota] = useState(false); const [notaEd, setNotaEd] = useState(false);
   const [renew, setRenew] = useState(false); const [pago, setPago] = useState<any>(null); const [cls, setCls] = useState<any>(null); const [nuevaClase, setNuevaClase] = useState(false);
   const [portal, setPortal] = useState(false); const [edit, setEdit] = useState(false); const [verTodas, setVerTodas] = useState(false); const [hist, setHist] = useState<any[] | null>(null);
   if (!p) return null;
@@ -76,19 +78,28 @@ export function PersonaSheet({ id, onClose }: { id: string; onClose: () => void 
   const antig = s.primera ? (() => { const m = Math.floor(s.antiguedadDias / 30.4); return m >= 1 ? `${m} mes${m === 1 ? '' : 'es'}` : `${s.antiguedadDias} días`; })() : '—';
   const sinCel = !p.celular;
   const toggle = async (patch: any) => { try { await upd('personas', p.id, patch); } catch (er: any) { toast('Error: ' + er.message); } };
+  const invitar = () => { const t = e.stage === 'no_se_inscribio' ? 'invitacion_prueba' : 'invitacion_inactiva'; wa(p, t, {}, { tipo: t, ref: hoy }); };
   const archivar = async () => { if (await ask(`¿Enviar a ${p.nombre} a la papelera? Podés restaurarla después.`)) { await toggle({ deleted_at: new Date().toISOString() }); onClose(); } };
   return (
     <Sheet title={p.nombre} onClose={onClose} wide>
       {node}
-      <div className="row between"><div><StageBadge e={e} /> {p.baneado && <span className="badge ban">⛔ Baneado/a</span>} {p.no_contactar && <span className="badge">No contactar</span>} {p.canal && <span className="badge">{(CANALES.find((x) => x[0] === p.canal) || [0, p.canal])[1]}</span>}{p.primer_contacto && <span className="muted small"> · 1er contacto {fmtDate(p.primer_contacto)}</span>}<div className="muted small" style={{ marginTop: 4 }}>{phonePretty(p.celular) || 'Sin celular'}{tutor ? ` · Tutor: ${tutor.nombre}` : ''}{menores.length ? ` · Tutor de ${menores.map((m: any) => m.nombre.split(' ')[0]).join(', ')}` : ''}</div></div></div>
+      <div className="row between"><div><StageBadge e={e} /> {p.baneado && <span className="badge ban">⛔ Baneado/a</span>} {p.no_contactar && <span className="badge">No contactar</span>} <PromoBadge id={p.id} /> {p.canal && <span className="badge">{(CANALES.find((x) => x[0] === p.canal) || [0, p.canal])[1]}</span>}{p.primer_contacto && <span className="muted small"> · 1er contacto {fmtDate(p.primer_contacto)}</span>}<div className="muted small" style={{ marginTop: 4 }}>{phonePretty(p.celular) || 'Sin celular'}{tutor ? ` · Tutor: ${tutor.nombre}` : ''}{menores.length ? ` · Tutor de ${menores.map((m: any) => m.nombre.split(' ')[0]).join(', ')}` : ''}</div></div></div>
       <div className="actions">
         {isAdmin && <button className="btn" onClick={() => setRenew(true)}>{subsMens.length ? 'Renovar' : 'Inscribir'}</button>}
         <button className="btn" onClick={() => setNuevaClase(true)}>Agendar clase</button>
         <button className="btn ghost" disabled={sinCel} onClick={() => wa(p, e.atraso > 0 ? 'atraso' : 'renovacion', { vence: e.sub ? fmtDate(e.sub.fin) : '', plan: e.sub?.plan_nombre || 'plan' })}>WhatsApp</button>
+        {(e.stage === 'no_se_inscribio' || e.stage === 'no_renovo') && !p.baneado && !p.no_contactar && <button className="btn ghost" disabled={sinCel} onClick={() => (isAdmin ? setAskInv(true) : invitar())}>Invitar a volver</button>}
         {isAdmin && <button className="btn ghost" onClick={() => setPortal(true)}>Enlace de alumno/a</button>}
-        {isAdmin && <button className="btn ghost" onClick={async () => { if (p.baneado) { if (await ask(`¿Quitar el baneo a ${p.nombre}?`)) await toggle({ baneado: false, baneo_nota: null }); } else if (await ask(`¿Banear a ${p.nombre}? Se la excluye para siempre de «Reactivar clientes» y queda marcada en negro. Se puede deshacer desde Configuración.`)) await toggle({ baneado: true, no_contactar: true }); }}>{p.baneado ? 'Quitar baneo' : '⛔ Banear'}</button>}
+        {isAdmin && <button className="btn ghost" onClick={async () => { if (p.baneado) { if (await ask(`¿Quitar el baneo a ${p.nombre}?`)) await toggle({ baneado: false, baneo_nota: null }); } else setBanNota(true); }}>{p.baneado ? 'Quitar baneo' : '⛔ Banear'}</button>}
         {isAdmin && <button className="btn ghost" onClick={() => setEdit(!edit)}>{edit ? 'Cerrar edición' : 'Editar'}</button>}
       </div>
+      {isAdmin && (promo.get(p.id).ofrecida || p.baneado || p.no_contactar) && <div className="muted small" style={{ marginTop: 6 }}>
+        {promo.get(p.id).ofrecida && <span>🎁 Se le ofreció promo el {fmtDate(promo.get(p.id).ofrecida.ref)}{promo.get(p.id).usada ? ' y la usó' : ''}. <button className="chip sm" onClick={async () => { if (await ask(`¿Quitar el ofrecimiento de promo a ${p.nombre}?`)) promo.quitar(p); }}>Quitar ofrecimiento</button> </span>}
+        {(p.baneado || p.no_contactar) && <span>{p.baneado ? 'Motivo del baneo' : 'Motivo de no contactar'}: {(p.baneado ? p.baneo_nota : p.nocont_nota) || 'sin nota'} <button className="chip sm" onClick={() => setNotaEd(true)}>Nota</button></span>}
+      </div>}
+      {askInv && <PromoAsk p={p} onClose={() => setAskInv(false)} onChoose={async (si) => { setAskInv(false); if (si) await promo.ofrecer(p); invitar(); }} />}
+      {banNota && <NotaSheet title={`Banear a ${p.nombre}`} value="" hint="Se la excluye para siempre de «Reactivar clientes» y queda marcada en negro. Anotá por qué (opcional); se puede deshacer desde Configuración." onSave={(v) => toggle({ baneado: true, no_contactar: true, baneo_nota: v || null })} onClose={() => setBanNota(false)} />}
+      {notaEd && <NotaSheet title={`Nota · ${p.nombre}`} value={(p.baneado ? p.baneo_nota : p.nocont_nota) || ''} onSave={(v) => toggle(p.baneado ? { baneo_nota: v || null } : { nocont_nota: v || null })} onClose={() => setNotaEd(false)} />}
       {edit && isAdmin && <EditPersona p={p} onDone={() => setEdit(false)} />}
 
       <div className="stats">
@@ -150,7 +161,7 @@ function EditPersona({ p, onDone }: { p: any; onDone: () => void }) {
   const { cfg, upd, toast } = useApp();
   const [nombre, setNombre] = useState(p.nombre); const [cel, setCel] = useState(p.celular || ''); const [notas, setNotas] = useState(p.notas || ''); const [tutor, setTutor] = useState(p.tutor_id || ''); const [pagador, setPagador] = useState(p.pagador_id || '');
   const [canal, setCanal] = useState(p.canal || ''); const [pc, setPc] = useState(p.primer_contacto || '');
-  const [sinPrueba, setSinPrueba] = useState(!!p.sin_prueba); const [noCont, setNoCont] = useState(!!p.no_contactar); const [pf, setPf] = useState(p.prueba_fecha || '');
+  const [sinPrueba, setSinPrueba] = useState(!!p.sin_prueba); const [noCont, setNoCont] = useState(!!p.no_contactar); const [ncNota, setNcNota] = useState(p.nocont_nota || ''); const [pf, setPf] = useState(p.prueba_fecha || '');
   return (
     <div className="box stack">
       <Field label="Nombre"><input value={nombre} onChange={(e) => setNombre(e.target.value)} /></Field>
@@ -162,8 +173,9 @@ function EditPersona({ p, onDone }: { p: any; onDone: () => void }) {
       <Field label="Fecha de prueba"><input type="date" value={pf} onChange={(e) => setPf(e.target.value)} /></Field>
       <label className="check"><input type="checkbox" checked={sinPrueba} onChange={(e) => setSinPrueba(e.target.checked)} /> Excepción: no hizo clase de prueba</label>
       <label className="check"><input type="checkbox" checked={noCont} onChange={(e) => setNoCont(e.target.checked)} /> No contactar (no invitar a volver)</label>
+      {noCont && <Field label="Motivo de no contactar (opcional)"><input value={ncNota} onChange={(e) => setNcNota(e.target.value)} /></Field>}
       <Field label="Notas"><textarea rows={2} value={notas} onChange={(e) => setNotas(e.target.value)} /></Field>
-      <button className="btn" onClick={async () => { try { await upd('personas', p.id, { nombre: nombre.trim(), celular: normPhone(cel, cfg.pais_tel) || null, notas: notas || null, tutor_id: tutor || null, pagador_id: pagador || null, sin_prueba: sinPrueba, no_contactar: noCont, prueba_fecha: pf || null, canal: canal || null, primer_contacto: pc || null }); toast('Guardado'); onDone(); } catch (er: any) { toast('Error: ' + er.message); } }}>Guardar cambios</button>
+      <button className="btn" onClick={async () => { try { await upd('personas', p.id, { nombre: nombre.trim(), celular: normPhone(cel, cfg.pais_tel) || null, notas: notas || null, tutor_id: tutor || null, pagador_id: pagador || null, sin_prueba: sinPrueba, no_contactar: noCont, nocont_nota: noCont ? ncNota.trim() || null : null, prueba_fecha: pf || null, canal: canal || null, primer_contacto: pc || null }); toast('Guardado'); onDone(); } catch (er: any) { toast('Error: ' + er.message); } }}>Guardar cambios</button>
     </div>
   );
 }

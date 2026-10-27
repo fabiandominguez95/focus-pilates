@@ -153,3 +153,5 @@ html,body{overscroll-behavior-y:contain}
 .cob-leg{display:flex;flex-direction:column;gap:4px;margin:10px 0;font-size:13.5px}.cob-leg span{display:flex;align-items:center;gap:6px}.cob-leg i{width:12px;height:12px;border-radius:4px;display:inline-block;flex:none}.cob-leg b{margin-left:auto}
 .cob-chips{margin:0 0 10px;align-items:center}.chip.sm{padding:3px 10px;font-size:12.5px}
 .row-card.rev,.row-card.rev.aus,.row-card.rev.cancel{background:var(--done);border-color:var(--done-b);opacity:1}.row-card.rev.aus{border-left:3px solid var(--neg)}.row-card.rev.cancel{border-left:3px solid var(--sage)}
+.badge.promo{background:#fbeccb;border-color:#e3b865;color:#7a5200}
+@media (prefers-color-scheme:dark){.badge.promo{background:#3d2e10;border-color:#7a5a1f;color:#f1d79c}}

@@ -5,6 +5,7 @@ import { Seg, Empty } from '../ui';
 import { useWhats } from '../classes';
 import { RenewSheet } from '../subs';
 import { useNoRenueva, NoRenuevaSheet } from '../norenueva';
+import { usePromo, PromoBadge, PromoAsk, NotaSheet } from '../promo';
 import { addDays, diffDays, fmtDate, hm, diaRel } from '../util';
 
 // Cálculo compartido con Home (para el check único "Revisar seguimiento")
@@ -76,7 +77,7 @@ function Renov({ sg, openPersona }: { sg: any; openPersona: (id: string) => void
 }
 
 function Reactivar({ openPersona }: { openPersona: (id: string) => void }) {
-  const { d, cfg, hoy, isAdmin, upd, toast } = useApp(); const idx = useMemo(() => buildIndex(d), [d]); const wa = useWhats(); const nrv = useNoRenueva();
+  const { d, cfg, hoy, isAdmin, upd, toast } = useApp(); const idx = useMemo(() => buildIndex(d), [d]); const wa = useWhats(); const nrv = useNoRenueva(); const promo = usePromo(); const [askP, setAskP] = useState<any>(null); const [renewP, setRenewP] = useState<any>(null); const [notaP, setNotaP] = useState<any>(null);
   const [tab, setTab] = useState<'no_se_inscribio' | 'no_renovo'>('no_se_inscribio');
   const lastContact = useMemo(() => { const m = new Map<string, string>(); d.avisos.forEach((a: any) => { if (!a.tipo.startsWith('invitacion')) return; const f = (a.creado_en || '').slice(0, 10); if (!m.has(a.persona_id) || f > m.get(a.persona_id)!) m.set(a.persona_id, f); }); return m; }, [d.avisos]);
   const rows = useMemo(() => d.personas.map((p: any) => ({ p, e: estadoPersona(p, idx, cfg, hoy), s: personaStats(p, idx, hoy, cfg.recup_dias) })).filter((r: any) => r.e.stage === tab && !r.p.baneado), [d, idx, cfg, hoy, tab]);
@@ -84,28 +85,32 @@ function Reactivar({ openPersona }: { openPersona: (id: string) => void }) {
   const listos = items.filter((x: any) => x.g === 'ok').sort((a: any, b: any) => (b.s.ultima || '').localeCompare(a.s.ultima || ''));
   const esperando = items.filter((x: any) => x.g === 'esp'); const sinCel = items.filter((x: any) => x.g === 'sc'); const noCont = items.filter((x: any) => x.g === 'nc');
   const [open, setOpen] = useState<{ sc: boolean; nc: boolean }>({ sc: false, nc: false });
-  const escribir = (x: any) => wa(x.p, tab === 'no_se_inscribio' ? 'invitacion_prueba' : 'invitacion_inactiva', {}, { tipo: tab === 'no_se_inscribio' ? 'invitacion_prueba' : 'invitacion_inactiva', ref: hoy });
+  const enviar = (x: any) => wa(x.p, tab === 'no_se_inscribio' ? 'invitacion_prueba' : 'invitacion_inactiva', {}, { tipo: tab === 'no_se_inscribio' ? 'invitacion_prueba' : 'invitacion_inactiva', ref: hoy });
+  const escribir = (x: any) => { if (isAdmin) setAskP(x); else enviar(x); };
   const devolverEspera = async (x: any) => { try { for (const a of d.avisos.filter((a: any) => a.persona_id === x.p.id && a.tipo.startsWith('invitacion'))) await upd('avisos', a.id, { deleted_at: new Date().toISOString() }); toast('Volvió a la lista'); } catch (e: any) { toast('Error: ' + e.message); } };
   const devolverNc = (x: any) => Promise.all([upd('personas', x.p.id, { no_contactar: false }), nrv.map.has(x.p.id) ? nrv.deshacer(x.p.id) : null]).then(() => toast('Volvió a la lista')).catch((e: any) => toast('Error: ' + e.message));
-  const Fila = ({ x, sub, btn }: any) => <div className="row-card plain" onClick={() => openPersona(x.p.id)}><div className="grow"><b>{x.p.nombre}</b><div className="small muted">{sub}</div></div>{btn && <button className="btn sm ghost" onClick={(e) => { e.stopPropagation(); btn[1](); }}>{btn[0]}</button>}</div>;
+  const Fila = ({ x, sub, btn, btn2 }: any) => <div className="row-card plain" onClick={() => openPersona(x.p.id)}><div className="grow"><b>{x.p.nombre}</b> <PromoBadge id={x.p.id} /><div className="small muted">{sub}</div></div>{btn2 && <button className="btn sm" onClick={(e) => { e.stopPropagation(); btn2[1](); }}>{btn2[0]}</button>}{btn && <button className="btn sm ghost" onClick={(e) => { e.stopPropagation(); btn[1](); }}>{btn[0]}</button>}</div>;
   return (<div>
     <div className="muted small pad">Invitá a volver a quienes hicieron la prueba y no siguieron, o dejaron de venir.</div>
     <Seg value={tab} onChange={setTab} options={[['no_se_inscribio', 'Solo hicieron prueba'], ['no_renovo', 'Dejaron de venir']]} />
     <div className="muted small pad">{listos.length} para escribir ahora · espera de {cfg.espera_contacto_dias} días entre mensajes (se cambia en Configuración).</div>
     {listos.length === 0 && <Empty>No hay nadie para contactar ahora.</Empty>}
     <div className="list">{listos.map((x: any) => (
-      <div className="row-card plain" key={x.p.id}><div className="grow" onClick={() => openPersona(x.p.id)}><b>{x.p.nombre}</b><div className="small muted">{x.s.ultima ? `última clase ${fmtDate(x.s.ultima)}` : 'sin clases'}{x.lc ? ` · le escribiste hace ${x.since} d` : ''}</div></div>
+      <div className="row-card plain" key={x.p.id}><div className="grow" onClick={() => openPersona(x.p.id)}><b>{x.p.nombre}</b> <PromoBadge id={x.p.id} /><div className="small muted">{x.s.ultima ? `última clase ${fmtDate(x.s.ultima)}` : 'sin clases'}{x.lc ? ` · le escribiste hace ${x.since} d` : ''}</div></div>
         <button className="btn sm" onClick={() => escribir(x)}>Invitar</button>
         {isAdmin && <button className="x2" title="No contactar" onClick={() => upd('personas', x.p.id, { no_contactar: true }).then(() => toast('Marcada como no contactar'))}>⊘</button>}</div>))}</div>
-    {esperando.length > 0 && <><h3>En espera ({esperando.length})</h3><div className="muted small pad">Ya se les escribió; vuelven solos a los {cfg.espera_contacto_dias} días. Podés devolverlos antes.</div><div className="list dim">{esperando.map((x: any) => <Fila key={x.p.id} x={x} sub={`le escribiste hace ${x.since} d · de nuevo en ${cfg.espera_contacto_dias - x.since} d`} btn={['Devolver a la lista', () => devolverEspera(x)]} />)}</div></>}
+    {esperando.length > 0 && <><h3>En espera ({esperando.length})</h3><div className="muted small pad">Ya se les escribió; vuelven solos a los {cfg.espera_contacto_dias} días. Podés devolverlos antes.</div><div className="list dim">{esperando.map((x: any) => <Fila key={x.p.id} x={x} sub={`le escribiste hace ${x.since} d · de nuevo en ${cfg.espera_contacto_dias - x.since} d`} btn={['Devolver a la lista', () => devolverEspera(x)]} btn2={isAdmin ? ['Renovar', () => setRenewP(x.p)] : null} />)}</div></>}
     {sinCel.length > 0 && <div style={{ marginTop: 14 }}>
       <button className="btn ghost sm" style={{ display: 'block', width: '100%', textAlign: 'left' }} onClick={() => setOpen({ ...open, sc: !open.sc })}>{open.sc ? '▾' : '▸'} Sin celular ({sinCel.length})</button>
       {open.sc && <div className="list dim" style={{ marginTop: 6 }}>{sinCel.map((x: any) => <Fila key={x.p.id} x={x} sub="Sin celular: cargalo en su perfil para poder invitarlo/a" />)}</div>}
     </div>}
     {noCont.length > 0 && <div style={{ marginTop: 14 }}>
       <button className="btn ghost sm" style={{ display: 'block', width: '100%', textAlign: 'left' }} onClick={() => setOpen({ ...open, nc: !open.nc })}>{open.nc ? '▾' : '▸'} No contactar ({noCont.length})</button>
-      {open.nc && <div className="list dim" style={{ marginTop: 6 }}>{noCont.map((x: any) => <Fila key={x.p.id} x={x} sub="Marcado/a como no contactar" btn={isAdmin ? ['Devolver a la lista', () => devolverNc(x)] : null} />)}</div>}
+      {open.nc && <div className="list dim" style={{ marginTop: 6 }}>{noCont.map((x: any) => <Fila key={x.p.id} x={x} sub={nrv.map.get(x.p.id) ? `Ya no va a renovar${nrv.map.get(x.p.id)!.motivo ? ': ' + nrv.map.get(x.p.id)!.motivo : ''}` : x.p.nocont_nota ? 'No contactar: ' + x.p.nocont_nota : 'Marcado/a como no contactar'} btn2={isAdmin ? ['Nota', () => setNotaP(x.p)] : null} btn={isAdmin ? ['Devolver a la lista', () => devolverNc(x)] : null} />)}</div>}
     </div>}
+    {askP && <PromoAsk p={askP.p} onClose={() => setAskP(null)} onChoose={async (si) => { const x = askP; setAskP(null); if (si) await promo.ofrecer(x.p); enviar(x); }} />}
+    {renewP && <RenewSheet persona={renewP} onClose={() => setRenewP(null)} />}
+    {notaP && <NotaSheet title={`Nota · ${notaP.nombre}`} value={notaP.nocont_nota || ''} hint="Por qué no se la contacta. Solo la ve el admin." onSave={(v) => upd('personas', notaP.id, { nocont_nota: v || null })} onClose={() => setNotaP(null)} />}
   </div>);
 }
 

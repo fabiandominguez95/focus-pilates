@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useApp } from './store';
 import { buildIndex, horasDisponibles, bloqAplica } from './logic';
 import { Sheet, Field } from './ui';
+import { usePromo } from './promo';
 import { addDays, diffDays, dowISO, gs, subFin, uid, fmtDateY, addMonths, hm, timeToMin } from './util';
 
 export function aplicarDescuento(precio: number, tipo?: string | null, valor?: number | null) {
@@ -45,7 +46,7 @@ export function filasClases(persona: any, sub: any, horarios: Slot[], d: any, ho
 
 export function RenewSheet({ persona, onClose, onDone }: { persona: any; onClose: () => void; onDone?: () => void }) {
   const { d, cfg, hoy, ins, upd, toast, me } = useApp();
-  const idx = useMemo(() => buildIndex(d), [d]);
+  const idx = useMemo(() => buildIndex(d), [d]); const prm = usePromo(); const pr = prm.get(persona.id); const [conPromo, setConPromo] = useState(false);
   const subs = idx.subsByP.get(persona.id) || []; const prev = [...subs].filter((s: any) => s.tipo !== 'unica').pop();
   const planes = d.planes.filter((p: any) => p.activo !== false);
   const defInicio = prev ? (diffDays(hoy, prev.fin) > cfg.inactiva_dias ? hoy : addDays(prev.fin, 1)) : hoy;
@@ -102,6 +103,7 @@ export function RenewSheet({ persona, onClose, onDone }: { persona: any; onClose
         inicio, fin: f.pl?.tipo === 'unica' ? inicio : subFin(inicio), pago_fecha: pagarAhora ? pagoFecha : null, pago_metodo_id: pagarAhora ? metodo || null : null, pago_monto: pagarAhora ? f.final : null, grupo_pago: gid,
       }));
       const creadas: any[] = await ins('suscripciones', rows);
+      if (conPromo && pr.ofrecida && creadas[0]?.id) await prm.usada(persona, creadas[0].id);
       if (sinPrueba) await upd('personas', persona.id, { sin_prueba: true });
       // horario fijo de quien se inscribe
       let horariosFinal: Slot[] = actuales.map((h) => ({ dia: h.dia, hora: hm(h.hora) }));
@@ -128,6 +130,7 @@ export function RenewSheet({ persona, onClose, onDone }: { persona: any; onClose
   return (
     <Sheet title={prev ? `Renovar · ${persona.nombre}` : `Inscribir · ${persona.nombre}`} onClose={onClose} wide>
       <div className="stack">
+        {pr.ofrecida && <div className="box" style={{ background: 'var(--peach)' }}><b>🎁 Ya tuvo promo</b> <span className="muted small">(se le ofreció el {fmtDateY(pr.ofrecida.ref)}{pr.usada ? ' y ya la usó' : ''})</span>{!pr.usada && <label className="check"><input type="checkbox" checked={conPromo} onChange={(e) => setConPromo(e.target.checked)} /> Se inscribe aprovechando la promo (ajustá el precio abajo si hace falta)</label>}</div>}
         <Field label="Plan"><select value={planId} onChange={(e) => setPlanId(e.target.value)}>{planes.map((p: any) => <option key={p.id} value={p.id}>{p.nombre} · {gs(p.precio)}{p.tipo !== 'unica' ? ` · ${p.clases_semana} clase${p.clases_semana === 1 ? '' : 's'}/sem` : ''}</option>)}</select></Field>
         {!esUnica && (<div className="box stack">
           <b>Días y horarios fijos <span className="muted small">({nSlots} por semana)</span></b>
