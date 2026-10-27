@@ -78,25 +78,25 @@ function Renov({ sg, openPersona }: { sg: any; openPersona: (id: string) => void
 
 function Reactivar({ openPersona }: { openPersona: (id: string) => void }) {
   const { d, cfg, hoy, isAdmin, upd, toast } = useApp(); const idx = useMemo(() => buildIndex(d), [d]); const wa = useWhats(); const nrv = useNoRenueva(); const promo = usePromo(); const [askP, setAskP] = useState<any>(null); const [renewP, setRenewP] = useState<any>(null); const [notaP, setNotaP] = useState<any>(null);
-  const [tab, setTab] = useState<'no_se_inscribio' | 'no_renovo'>('no_se_inscribio');
+  const [tab, setTab] = useState<'no_se_inscribio' | 'no_vino' | 'no_renovo'>('no_se_inscribio');
   const lastContact = useMemo(() => { const m = new Map<string, string>(); d.avisos.forEach((a: any) => { if (!a.tipo.startsWith('invitacion')) return; const f = (a.creado_en || '').slice(0, 10); if (!m.has(a.persona_id) || f > m.get(a.persona_id)!) m.set(a.persona_id, f); }); return m; }, [d.avisos]);
-  const rows = useMemo(() => d.personas.map((p: any) => ({ p, e: estadoPersona(p, idx, cfg, hoy), s: personaStats(p, idx, hoy, cfg.recup_dias) })).filter((r: any) => r.e.stage === tab && !r.p.baneado), [d, idx, cfg, hoy, tab]);
+  const rows = useMemo(() => d.personas.map((p: any) => ({ p, e: estadoPersona(p, idx, cfg, hoy), s: personaStats(p, idx, hoy, cfg.recup_dias) })).filter((r: any) => (tab === 'no_vino' ? r.e.stage === 'no_se_inscribio' && !r.s.ultima : tab === 'no_se_inscribio' ? r.e.stage === 'no_se_inscribio' && !!r.s.ultima : r.e.stage === tab) && !r.p.baneado), [d, idx, cfg, hoy, tab]);
   const items = rows.map((r: any) => { const lc = lastContact.get(r.p.id); const since = lc ? diffDays(hoy, lc) : null; const g = r.p.no_contactar || nrv.map.has(r.p.id) ? 'nc' : !r.p.celular ? 'sc' : since !== null && since < cfg.espera_contacto_dias ? 'esp' : 'ok'; return { ...r, lc, since, g }; });
   const listos = items.filter((x: any) => x.g === 'ok').sort((a: any, b: any) => (b.s.ultima || '').localeCompare(a.s.ultima || ''));
   const esperando = items.filter((x: any) => x.g === 'esp'); const sinCel = items.filter((x: any) => x.g === 'sc'); const noCont = items.filter((x: any) => x.g === 'nc');
   const [open, setOpen] = useState<{ sc: boolean; nc: boolean }>({ sc: false, nc: false });
-  const enviar = (x: any) => wa(x.p, tab === 'no_se_inscribio' ? 'invitacion_prueba' : 'invitacion_inactiva', {}, { tipo: tab === 'no_se_inscribio' ? 'invitacion_prueba' : 'invitacion_inactiva', ref: hoy });
+  const tplT = tab === 'no_se_inscribio' ? 'invitacion_prueba' : tab === 'no_vino' ? 'invitacion_novino' : 'invitacion_inactiva'; const enviar = (x: any) => wa(x.p, tplT, {}, { tipo: tplT, ref: hoy });
   const escribir = (x: any) => { if (isAdmin) setAskP(x); else enviar(x); };
   const devolverEspera = async (x: any) => { try { for (const a of d.avisos.filter((a: any) => a.persona_id === x.p.id && a.tipo.startsWith('invitacion'))) await upd('avisos', a.id, { deleted_at: new Date().toISOString() }); toast('Volvió a la lista'); } catch (e: any) { toast('Error: ' + e.message); } };
   const devolverNc = (x: any) => Promise.all([upd('personas', x.p.id, { no_contactar: false }), nrv.map.has(x.p.id) ? nrv.deshacer(x.p.id) : null]).then(() => toast('Volvió a la lista')).catch((e: any) => toast('Error: ' + e.message));
   const Fila = ({ x, sub, btn, btn2 }: any) => <div className="row-card plain" onClick={() => openPersona(x.p.id)}><div className="grow"><b>{x.p.nombre}</b> <PromoBadge id={x.p.id} /><div className="small muted">{sub}</div></div>{btn2 && <button className="btn sm" onClick={(e) => { e.stopPropagation(); btn2[1](); }}>{btn2[0]}</button>}{btn && <button className="btn sm ghost" onClick={(e) => { e.stopPropagation(); btn[1](); }}>{btn[0]}</button>}</div>;
   return (<div>
     <div className="muted small pad">Invitá a volver a quienes hicieron la prueba y no siguieron, o dejaron de venir.</div>
-    <Seg value={tab} onChange={setTab} options={[['no_se_inscribio', 'Solo hicieron prueba'], ['no_renovo', 'Dejaron de venir']]} />
+    <Seg value={tab} onChange={setTab} options={[['no_se_inscribio', 'Hicieron prueba'], ['no_vino', 'Agendaron y no vinieron'], ['no_renovo', 'Dejaron de venir']]} />
     <div className="muted small pad">{listos.length} para escribir ahora · espera de {cfg.espera_contacto_dias} días entre mensajes (se cambia en Configuración).</div>
     {listos.length === 0 && <Empty>No hay nadie para contactar ahora.</Empty>}
     <div className="list">{listos.map((x: any) => (
-      <div className="row-card plain" key={x.p.id}><div className="grow" onClick={() => openPersona(x.p.id)}><b>{x.p.nombre}</b> <PromoBadge id={x.p.id} /><div className="small muted">{x.s.ultima ? `última clase ${fmtDate(x.s.ultima)}` : 'sin clases'}{x.lc ? ` · le escribiste hace ${x.since} d` : ''}</div></div>
+      <div className="row-card plain" key={x.p.id}><div className="grow" onClick={() => openPersona(x.p.id)}><b>{x.p.nombre}</b> <PromoBadge id={x.p.id} /><div className="small muted">{x.s.ultima ? `última clase ${fmtDate(x.s.ultima)}` : 'agendó prueba y no vino'}{x.lc ? ` · le escribiste hace ${x.since} d` : ''}</div></div>
         <button className="btn sm" onClick={() => escribir(x)}>Invitar</button>
         {isAdmin && <button className="x2" title="No contactar" onClick={() => upd('personas', x.p.id, { no_contactar: true }).then(() => toast('Marcada como no contactar'))}>⊘</button>}</div>))}</div>
     {esperando.length > 0 && <><h3>En espera ({esperando.length})</h3><div className="muted small pad">Ya se les escribió; vuelven solos a los {cfg.espera_contacto_dias} días. Podés devolverlos antes.</div><div className="list dim">{esperando.map((x: any) => <Fila key={x.p.id} x={x} sub={`le escribiste hace ${x.since} d · de nuevo en ${cfg.espera_contacto_dias - x.since} d`} btn={['Devolver a la lista', () => devolverEspera(x)]} btn2={isAdmin ? ['Renovar', () => setRenewP(x.p)] : null} />)}</div></>}

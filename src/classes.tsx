@@ -54,6 +54,7 @@ export function useUndoAviso() {
   };
 }
 export const DEFAULT_TPL: Record<string, string> = {
+  invitacion_novino: 'Hola {nombre}! Soy de Focus Pilates 😊 Vimos que no pudiste venir a tu clase de prueba y queríamos saber si todo bien. Si querés, la reagendamos para el día y horario que te quede mejor, sin compromiso. ¿Qué día te vendría bien?',
   recuperar_pendientes: 'Hola {nombre}! Tenés pendiente recuperar {fechas}.{plazo} ¿Me avisás para cuándo las agendamos? 🙌',
   prueba_post1: 'Hola {nombre}! ¿Cómo te fue en tu clase de prueba de {dia}? Nos encantaría saber qué te pareció y ayudarte a elegir tu plan 💛',
   prueba_post2: 'Hola {nombre}! Te escribimos de Focus Pilates: todavía tenemos lugares disponibles para que arranques. ¿Querés que te reservemos un horario? 🤍',
