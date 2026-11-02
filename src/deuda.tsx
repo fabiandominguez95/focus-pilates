@@ -9,7 +9,7 @@ export const DEUDA_DESDE = '2026-10';
 
 export function useDeuda() {
   const { d, cfg, ins, upd, hoy, toast } = useApp(); const desde = cfg.deuda_desde || DEUDA_DESDE;
-  const pend = useMemo(() => (d.egresos || []).filter((e: any) => e.suma && !e.reintegrado && e.mes >= desde && Number(e.monto) > 0).sort((a: any, b: any) => a.mes.localeCompare(b.mes)), [d.egresos, desde]);
+  const pend = useMemo(() => (d.egresos || []).filter((e: any) => e.suma && e.pagado && !e.reintegrado && e.mes >= desde && Number(e.monto) > 0).sort((a: any, b: any) => a.mes.localeCompare(b.mes)), [d.egresos, desde]);
   const movs = useMemo(() => [...(d.aportes || [])].sort((a: any, b: any) => (b.fecha || '').localeCompare(a.fecha || '')), [d.aportes]);
   const sum = (a: any[]) => a.reduce((t: number, x: any) => t + (Number(x.monto) || 0), 0);
   const gastos = sum(pend); const aportes = sum(movs.filter((x: any) => x.tipo === 'aporte')); const devol = sum(movs.filter((x: any) => x.tipo === 'devolucion'));
@@ -44,7 +44,7 @@ export function DeudaSheet({ m, onClose }: { m: string; onClose: () => void }) {
       <div className="stack">
         <div className="box big-total"><span>La empresa te debe</span><b>{gs(dd.total)}</b></div>
         <h3>Gastos que pagaste vos ({dd.pend.length})</h3>
-        {dd.pend.length === 0 && <div className="muted small">Ninguno pendiente. Se marcan con Σ en «Egresos del mes».</div>}
+        {dd.pend.length === 0 && <div className="muted small">Ninguno pendiente. Marcá el gasto con Σ y con ✓ pagado en «Egresos del mes» cuando lo pagues vos.</div>}
         {dd.pend.map((e: any) => <div className="kv" key={e.id}><span><b>{e.concepto}</b><br /><small className="muted">{monthLabel(e.mes)}</small></span><span className="row" style={{ gap: 8, alignItems: 'center' }}><b>{gs(e.monto)}</b><button className="btn sm ghost" onClick={() => dd.reintegrar(e, true)}>Me lo devolvieron</button></span></div>)}
         <h3>Aportes y devoluciones</h3>
         {dd.movs.length === 0 && <div className="muted small">Sin movimientos.</div>}
