@@ -6,7 +6,7 @@ import { useWhats } from '../classes';
 import { RenewSheet } from '../subs';
 import { useNoRenueva, NoRenuevaSheet } from '../norenueva';
 import { usePromo, PromoBadge, PromoAsk, NotaSheet } from '../promo';
-import { addDays, diffDays, fmtDate, hm, diaRel } from '../util';
+import { addDays, diffDays, fmtDate, fmtDateY, hm, diaRel } from '../util';
 
 // Cálculo compartido con Home (para el check único "Revisar seguimiento")
 export function useSeguimiento() {
@@ -96,7 +96,7 @@ function Reactivar({ openPersona }: { openPersona: (id: string) => void }) {
     <div className="muted small pad">{listos.length} para escribir ahora · espera de {cfg.espera_contacto_dias} días entre mensajes (se cambia en Configuración).</div>
     {listos.length === 0 && <Empty>No hay nadie para contactar ahora.</Empty>}
     <div className="list">{listos.map((x: any) => (
-      <div className="row-card plain" key={x.p.id}><div className="grow" onClick={() => openPersona(x.p.id)}><b>{x.p.nombre}</b> <PromoBadge id={x.p.id} /><div className="small muted">{x.s.ultima ? `última clase ${fmtDate(x.s.ultima)}` : 'agendó prueba y no vino'}{x.lc ? ` · le escribiste hace ${x.since} d` : ''}</div></div>
+      <div className="row-card plain" key={x.p.id}><div className="grow" onClick={() => openPersona(x.p.id)}><b>{x.p.nombre}</b> <PromoBadge id={x.p.id} /><div className="small muted">{x.s.ultima ? `última clase ${fmtDateY(x.s.ultima)}` : 'agendó prueba y no vino'}{x.lc ? ` · le escribiste hace ${x.since} d` : ''}</div></div>
         <button className="btn sm" onClick={() => escribir(x)}>Invitar</button>
         {isAdmin && <button className="x2" title="No contactar" onClick={() => upd('personas', x.p.id, { no_contactar: true }).then(() => toast('Marcada como no contactar'))}>⊘</button>}</div>))}</div>
     {esperando.length > 0 && <><h3>En espera ({esperando.length})</h3><div className="muted small pad">Ya se les escribió; vuelven solos a los {cfg.espera_contacto_dias} días. Podés devolverlos antes.</div><div className="list dim">{esperando.map((x: any) => <Fila key={x.p.id} x={x} sub={`le escribiste hace ${x.since} d · de nuevo en ${cfg.espera_contacto_dias - x.since} d`} btn={['Devolver a la lista', () => devolverEspera(x)]} btn2={isAdmin ? ['Renovar', () => setRenewP(x.p)] : null} />)}</div></>}
@@ -149,7 +149,7 @@ function Pruebas({ openPersona }: { openPersona: (id: string) => void }) {
   const Fila = ({ x }: { x: any }) => { const [lb, tone] = estado(x); const dsp = despues(x); const difiere = x.c.fecha !== x.orig;
     return (<div className="row-card plain" onClick={() => openPersona(x.p.id)}>
       <div className="grow"><b>{x.p.nombre}</b>
-        <div className="small muted">Agendó para {fmtDate(x.orig)} · <span style={tone ? { color: 'var(--neg)' } : undefined}>{lb}{difiere && x.st !== 'ausente' && x.st !== 'sin_marcar' ? ' ' + fmtDate(x.c.fecha) + ' ' + hm(x.c.hora) : ''}</span>{x.reag ? ' · reagendó' : ''}{dsp ? ' · ' + dsp : ''}</div></div>
+        <div className="small muted">Agendó para {fmtDateY(x.orig)} · <span style={tone ? { color: 'var(--neg)' } : undefined}>{lb}{difiere && x.st !== 'ausente' && x.st !== 'sin_marcar' ? ' ' + fmtDateY(x.c.fecha) + ' ' + hm(x.c.hora) : ''}</span>{x.reag ? ' · reagendó' : ''}{dsp ? ' · ' + dsp : ''}</div></div>
       {x.p.celular && (x.st === 'asistio' || x.st === 'ausente') && !conv(x) && <button className="btn sm ghost" onClick={(e) => { e.stopPropagation(); wa(x.p, x.st === 'asistio' ? 'prueba_post1' : 'prueba_reag1', { dia: diaRel(x.c.fecha, hoy), hora: hm(x.c.hora), fecha: fmtDate(x.c.fecha) }); }}>WhatsApp</button>}
     </div>); };
   return (<div>
