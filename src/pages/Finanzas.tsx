@@ -53,6 +53,22 @@ function Cobertura({ m, r, cerrada, pc, inclIng, setInclIng, inclSal, setInclSal
   const conMes = Math.min(r.ingresos, metaHoy); const falta0 = Math.max(0, metaHoy - conMes); const conReserva = Math.min(reserva, falta0); const falta1 = falta0 - conReserva;
   const aporteMes = (d.aportes || []).filter((x: any) => x.tipo === 'aporte' && x.mes === m).reduce((a: number, x: any) => a + (Number(x.monto) || 0), 0); const conAporte = Math.min(aporteMes, falta1); const falta = falta1 - conAporte;
   const escala = Math.max(metaFin, metaHoy, r.ingresos, 1); const w = (x: number) => Math.max(0, Math.min(100, (x / escala) * 100)) + '%';
+  if (!esActual) { // mes terminado: lo que no se pagó pasa como deuda al mes siguiente; lo pagado por el dueño queda en «Cuenta con vos»
+    const prop = r.egr.filter((e: any) => e.suma); const norm = r.egr.filter((e: any) => !e.suma);
+    const porVos = prop.reduce((a: number, e: any) => a + (Number(e.monto) || 0), 0); const deuda = norm.reduce((a: number, e: any) => a + restante(d, e), 0); const pagadoN = norm.reduce((a: number, e: any) => a + (Number(e.monto) || 0), 0) - deuda;
+    const aportes = (d.aportes || []).filter((x: any) => x.tipo === 'aporte' && x.mes === m).reduce((a: number, x: any) => a + (Number(x.monto) || 0), 0);
+    return (<section className="box cob">
+      <div className="sec-head"><h3>Cómo se pagó {monthLabel(m)}</h3></div>
+      <div className={'cob-t ' + (deuda > 0 ? 'mid' : 'pos')}>{deuda > 0 ? `Quedó deuda de ${gs(deuda)} que pasó al mes siguiente` : '✓ Mes terminado y pagado'}</div>
+      <div className="kv"><span>Gastos del mes</span><b>{gs(r.egresos)}</b></div>
+      <div className="kv small"><span>· Pagados desde la cuenta</span><b>{gs(pagadoN)}</b></div>
+      {porVos > 0 && <div className="kv small"><span>· Pagados por vos (te los debe la empresa)</span><b>{gs(porVos)}</b></div>}
+      {deuda > 0 && <div className="kv small"><span>· Sin pagar (pasan como deuda)</span><b>{gs(deuda)}</b></div>}
+      <div className="kv"><span>Ingresos del mes</span><b>{gs(r.ingresos)}</b></div>
+      {aportes > 0 && <div className="kv"><span>Plata que pusiste vos para este mes</span><b>{gs(aportes)}</b></div>}
+      <div className="muted small">Si algo del mes queda sin pagar, aparece como «Deuda de meses anteriores» en el mes siguiente. El dinero real está en «Posición de cuenta».</div>
+    </section>);
+  }
   const titulo = metaHoy <= 0 ? 'Todavía no hay gastos cargados' : falta === 0 && conReserva === 0 && conAporte === 0 ? '✓ Este mes ya cubre sus gastos' : falta === 0 && conAporte > 0 && conReserva === 0 ? 'Se cubre con plata que pusiste vos' : falta === 0 ? 'Se cubre, pero usando ganancia de meses anteriores' : 'Todavía falta para cubrir el mes';
   return (
     <section className="box cob">
