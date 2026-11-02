@@ -49,9 +49,10 @@ function Cobertura({ m, r, cerrada, pc, inclIng, setInclIng, inclSal, setInclSal
   const salReal = r.egr.filter((e: any) => e.tipo === 'salario').reduce((a: number, e: any) => a + (Number(e.monto) || 0), 0);
   const est = !cerrada && esActual; const metaHoy = !est ? r.egresos : otros + (inclSal ? Math.max(sal.proyectado, 0) : sal.devengado); const metaFin = !est ? r.egresos : otros + Math.max(sal.proyectado, 0);
   const reserva = useMemo(() => { const meses = allMonths(d, hoy).filter((x) => x < m); return Math.max(0, meses.reduce((a, x) => a + resumenMes(d, x).balance, 0)); }, [d, hoy, m]);
-  const conMes = Math.min(r.ingresos, metaHoy); const falta0 = Math.max(0, metaHoy - conMes); const conReserva = Math.min(reserva, falta0); const falta = falta0 - conReserva;
+  const conMes = Math.min(r.ingresos, metaHoy); const falta0 = Math.max(0, metaHoy - conMes); const conReserva = Math.min(reserva, falta0); const falta1 = falta0 - conReserva;
+  const aporteMes = (d.aportes || []).filter((x: any) => x.tipo === 'aporte' && x.mes === m).reduce((a: number, x: any) => a + (Number(x.monto) || 0), 0); const conAporte = Math.min(aporteMes, falta1); const falta = falta1 - conAporte;
   const escala = Math.max(metaFin, metaHoy, r.ingresos, 1); const w = (x: number) => Math.max(0, Math.min(100, (x / escala) * 100)) + '%';
-  const titulo = metaHoy <= 0 ? 'Todavía no hay gastos cargados' : falta === 0 && conReserva === 0 ? '✓ Este mes ya cubre sus gastos' : falta === 0 ? 'Se cubre, pero usando ganancia de meses anteriores' : 'Todavía falta para cubrir el mes';
+  const titulo = metaHoy <= 0 ? 'Todavía no hay gastos cargados' : falta === 0 && conReserva === 0 && conAporte === 0 ? '✓ Este mes ya cubre sus gastos' : falta === 0 && conAporte > 0 && conReserva === 0 ? 'Se cubre con plata que pusiste vos' : falta === 0 ? 'Se cubre, pero usando ganancia de meses anteriores' : 'Todavía falta para cubrir el mes';
   return (
     <section className="box cob">
       <div className="sec-head"><h3>¿Cuánto falta para pagar el mes?</h3></div>
@@ -60,13 +61,14 @@ function Cobertura({ m, r, cerrada, pc, inclIng, setInclIng, inclSal, setInclSal
         <button className={'chip sm' + (inclSal ? ' on' : '')} onClick={() => setInclSal(!inclSal)}>{inclSal ? '✓ ' : ''}Salario a fin de mes {gs(Math.max(sal.proyectado, 0))}</button></div>}
       <div className={'cob-t ' + (falta > 0 ? 'neg' : conReserva > 0 ? 'mid' : 'pos')}>{titulo}</div>
       <div className="cob-bar">
-        <i className="cob-a" style={{ width: w(conMes) }} /><i className="cob-b" style={{ width: w(conReserva), left: w(conMes) }} />{falta > 0 && <i className="cob-f" style={{ left: w(conMes + conReserva), width: w(falta), opacity: .55 }} />}
+        <i className="cob-a" style={{ width: w(conMes) }} /><i className="cob-b" style={{ width: w(conReserva), left: w(conMes) }} />{conAporte > 0 && <i className="cob-f" style={{ left: w(conMes + conReserva), width: w(conAporte), opacity: .9, background: 'var(--sand)' }} />}{falta > 0 && <i className="cob-f" style={{ left: w(conMes + conReserva + conAporte), width: w(falta), opacity: .55 }} />}
         {metaFin > metaHoy && <i className="cob-c" style={{ left: w(metaHoy), width: w(metaFin - metaHoy) }} />}
         {metaHoy > 0 && <u className="cob-tick" style={{ left: w(metaHoy) }} />}
       </div>
       <div className="cob-leg">
         <span><i className="cob-a" /> Con este mes <b>{gs(conMes)}</b></span>
         {conReserva > 0 && <span><i className="cob-b" /> Con ganancia de meses anteriores <b>{gs(conReserva)}</b></span>}
+        {conAporte > 0 && <span><i className="cob-f" style={{ background: 'var(--sand)' }} /> Con plata que pusiste vos <b>{gs(conAporte)}</b></span>}
         {falta > 0 && <span><i className="cob-f" /> Falta <b>{gs(falta)}</b></span>}
       </div>
       <div className="kv" onClick={() => setDet(!det)} style={{ cursor: 'pointer' }}><span>{det ? '▾' : '▸'} Gastos {!est ? 'del mes' : inclSal ? 'estimados a fin de mes' : 'de hoy'} ({gs(otros)} + salarios {gs(!est ? salReal : inclSal ? Math.max(sal.proyectado, 0) : sal.devengado)})</span><b>{gs(metaHoy)}</b></div>
