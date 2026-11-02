@@ -180,7 +180,19 @@ export default function Finanzas() {
   const salCargado = r0.egr.filter((e: any) => e.tipo === 'salario').reduce((a: number, e: any) => a + (Number(e.monto) || 0), 0); const extraEgr = inclSal && estOk ? Math.max(salE.proyectado, 0) - salCargado : 0;
   const r = useMemo(() => (extraIng || extraEgr) ? { ...r0, ingresos: r0.ingresos + extraIng, egresos: r0.egresos + extraEgr, balance: r0.balance + extraIng - extraEgr } : r0, [r0, extraIng, extraEgr]);
   const idx = useMemo(() => buildIndex(d), [d]);
-  const saldo = ultimoSaldo(d); const neto = (Number(saldo?.monto) || 0) - r.pend;
+  const saldo = ultimoSaldo(d); const caja = useMemo(() => {
+    const base = Number(saldo?.monto) || 0; const sf = saldo?.fecha || ''; const sc = saldo?.created_at || ''; const N = (x: any) => Number(x) || 0;
+    const nuevo = (f: string, c: string) => !!f && (f > sf || (f === sf && !!c && c > sc));
+    const ing = d.suscripciones.filter((x: any) => !x.cancelada && x.pago_fecha && nuevo(x.pago_fecha, x.created_at)).reduce((a: number, x: any) => a + N(x.pago_monto), 0) + d.ventas.filter((x: any) => nuevo(x.fecha, x.created_at)).reduce((a: number, x: any) => a + N(x.total), 0);
+    const mov = (d.aportes || []).filter((x: any) => (x.created_at || '') > sc);
+    const ap = mov.filter((x: any) => x.tipo === 'aporte').reduce((a: number, x: any) => a + N(x.monto), 0); const dv = mov.filter((x: any) => x.tipo === 'devolucion').reduce((a: number, x: any) => a + N(x.monto), 0);
+    const propio = (e: any) => e.suma; // lo pagó el dueño: sale de la cuenta recién cuando se lo devuelven
+    const pag = d.egresos.filter((e: any) => !propio(e) && e.pagado && e.pagado_fecha && e.pagado_fecha >= sf).reduce((a: number, e: any) => a + N(e.monto), 0);
+    const reint = d.egresos.filter((e: any) => propio(e) && e.reintegrado && e.reintegrado_fecha && e.reintegrado_fecha >= sf).reduce((a: number, e: any) => a + N(e.monto), 0);
+    const pend = d.egresos.filter((e: any) => !propio(e) && !e.pagado).reduce((a: number, e: any) => a + N(e.monto), 0);
+    const hoyCuenta = base + ing + ap - dv - pag - reint;
+    return { base, ing, ap, dv, pag, reint, pend, hoyCuenta, neto: hoyCuenta - pend };
+  }, [d.suscripciones, d.ventas, d.aportes, d.egresos, saldo]); const neto = caja.neto;
   const pagados = r.egr.filter((e: any) => e.pagado).length; const prog = r.egr.length ? pagados / r.egr.length : 0;
   const sumaSel = r.egr.filter((e: any) => e.suma).reduce((a: number, e: any) => a + (Number(e.monto) || 0), 0);
   const prev3 = [1, 2, 3].map((n) => resumenMes(d, addMonthKey(m, -n))).filter((x) => x.nPagos > 0);
@@ -217,10 +229,15 @@ export default function Finanzas() {
 
       <section className="box">
         <div className="sec-head"><h3>Posición de cuenta</h3>{isAdmin && <button className="btn sm ghost" onClick={() => setSaldoEd(true)}>Actualizar</button>}</div>
-        <div className="kv"><span>En cuenta{saldo ? ` (${fmtDate(saldo.fecha)})` : ''}</span><b>{gs(saldo?.monto || 0)}</b></div>
-        <div className="kv"><span>− Egresos pendientes de {monthLabel(m)}</span><b>{gs(r.pend)}</b></div>
-        <div className={'kv total ' + (neto >= 0 ? 'pos' : 'neg')}><span>Ganancia / pérdida global</span><b>{gs(neto)}</b></div>
-        <div className="muted small">Es lo que tenés en cuenta menos lo que todavía falta pagar este mes.</div>
+        <div className="kv"><span>Último saldo cargado{saldo ? ` (${fmtDate(saldo.fecha)})` : ''}</span><b>{gs(caja.base)}</b></div>
+        {caja.ing > 0 && <div className="kv small"><span>+ Cobros desde entonces</span><b>{gs(caja.ing)}</b></div>}
+        {caja.ap > 0 && <div className="kv small"><span>+ Plata que pusiste vos</span><b>{gs(caja.ap)}</b></div>}
+        {caja.pag > 0 && <div className="kv small"><span>− Egresos pagados desde entonces</span><b>{gs(caja.pag)}</b></div>}
+        {caja.dv + caja.reint > 0 && <div className="kv small"><span>− Devoluciones a vos</span><b>{gs(caja.dv + caja.reint)}</b></div>}
+        <div className="kv"><span><b>En cuenta ahora (estimado)</b></span><b>{gs(caja.hoyCuenta)}</b></div>
+        <div className="kv"><span>− Egresos sin pagar (todos los meses)</span><b>{gs(caja.pend)}</b></div>
+        <div className={'kv total ' + (neto >= 0 ? 'pos' : 'neg')}><span>{neto >= 0 ? 'Queda después de pagar todo' : 'Falta para pagar todo'}</span><b>{gs(Math.abs(neto))}</b></div>
+        <div className="muted small">Se calcula solo: el último saldo que cargaste, más cobros y aportes, menos lo que marques como pagado. Si no coincide con el banco, tocá Actualizar. Los gastos que pagaste vos (Σ) no salen de la cuenta hasta que te los devuelvan.</div>
       </section>
 
       <section>
