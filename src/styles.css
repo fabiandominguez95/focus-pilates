@@ -156,3 +156,4 @@ html,body{overscroll-behavior-y:contain}
 .badge.promo{background:#fbeccb;border-color:#e3b865;color:#7a5200}
 @media (prefers-color-scheme:dark){.badge.promo{background:#3d2e10;border-color:#7a5a1f;color:#f1d79c}}
 .link-btn{background:none;border:0;padding:2px 0;color:var(--sand);font-size:12px;font-weight:600;text-decoration:underline}
+.arrastre{border:1px dashed var(--line);border-radius:12px;padding:10px;margin-top:10px}.arrastre .egreso{display:flex;gap:8px;align-items:center;padding:6px 0}

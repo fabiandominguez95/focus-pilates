@@ -175,7 +175,7 @@ export function SalarioCalc({ m, onApply, cerrado }: { m: string; onApply?: (tot
 export default function Finanzas() {
   const { d, cfg, hoy, upd, ins, toast, isAdmin, reload } = useApp();
   const { ask, node } = useConfirm();
-  const [m, setM] = useState(monthOf(hoy)); const [sum, setSum] = useState<Set<string>>(new Set()); const [add, setAdd] = useState(false); const [sim, setSim] = useState(false); const [cierre, setCierre] = useState(false); const [verPagos, setVerPagos] = useState(false); const [saldoEd, setSaldoEd] = useState(false); const [pagoE, setPagoE] = useState<any>(null); const [inclArr, setInclArr] = useState(false);
+  const [m, setM] = useState(monthOf(hoy)); const [sum, setSum] = useState<Set<string>>(new Set()); const [add, setAdd] = useState(false); const [sim, setSim] = useState(false); const [cierre, setCierre] = useState(false); const [verPagos, setVerPagos] = useState(false); const [saldoEd, setSaldoEd] = useState(false); const [pagoE, setPagoE] = useState<any>(null); const [inclArr, setInclArr] = useState(true);
   const r0 = useMemo(() => resumenMes(d, m), [d, m]); const [inclIng, setInclIng] = useState(false); const [inclSal, setInclSal] = useState(false); const pc = usePorCobrar(m, r0); const salE = useSalarioMes(m);
   const cerrada = d.cierres.find((c: any) => c.mes === m)?.estado === 'cerrado';
   const estOk = !cerrada && m >= monthOf(hoy); const extraIng = inclIng && pc.futuro ? pc.porCobrar : 0;
@@ -233,22 +233,14 @@ export default function Finanzas() {
 
       <section className="box">
         <div className="sec-head"><h3>Posición de cuenta</h3>{isAdmin && <button className="btn sm ghost" onClick={() => setSaldoEd(true)}>Actualizar</button>}</div>
-        <div className="kv"><span>Último saldo cargado{saldo ? ` (${fmtDate(saldo.fecha)})` : ''}</span><b>{gs(caja.base)}</b></div>
-        {caja.ing > 0 && <div className="kv small"><span>+ Cobros desde entonces</span><b>{gs(caja.ing)}</b></div>}
-        {caja.ap > 0 && <div className="kv small"><span>+ Plata que pusiste vos</span><b>{gs(caja.ap)}</b></div>}
-        {caja.pag > 0 && <div className="kv small"><span>− Egresos pagados desde entonces</span><b>{gs(caja.pag)}</b></div>}
-        {caja.dv + caja.reint > 0 && <div className="kv small"><span>− Devoluciones a vos</span><b>{gs(caja.dv + caja.reint)}</b></div>}
-        <div className="kv"><span><b>En cuenta ahora (estimado)</b></span><b>{gs(caja.hoyCuenta)}</b></div>
+        <div className="kv"><span><b>En cuenta ahora (estimado)</b></span><b style={{ fontSize: 20 }}>{gs(caja.hoyCuenta)}</b></div>
+        <div className="muted small">Saldo que cargaste el {saldo ? fmtDate(saldo.fecha) : '—'}: {gs(caja.base)}{caja.ing > 0 ? ` + cobros ${gs(caja.ing)}` : ''}{caja.ap > 0 ? ` + tus aportes ${gs(caja.ap)}` : ''}{caja.pag > 0 ? ` − egresos pagados ${gs(caja.pag)}` : ''}{caja.dv + caja.reint > 0 ? ` − devoluciones ${gs(caja.dv + caja.reint)}` : ''}.</div>
         <div className="kv"><span>− Egresos sin pagar (todos los meses, descontando pagos parciales)</span><b>{gs(caja.pend)}</b></div>
         <div className={'kv total ' + (neto >= 0 ? 'pos' : 'neg')}><span>{neto >= 0 ? 'Queda después de pagar todo' : 'Falta para pagar todo'}</span><b>{gs(Math.abs(neto))}</b></div>
         <div className="muted small">Se calcula solo: el último saldo que cargaste, más cobros y aportes, menos lo que marques como pagado. Si no coincide con el banco, tocá Actualizar. Los gastos que pagaste vos (Σ) no salen de la cuenta hasta que te los devuelvan.</div>
       </section>
 
       <section>
-        {arr > 0 && <div className="box" style={{ marginBottom: 10 }}>
-          <div className="sec-head"><h3>Arrastre de meses anteriores</h3><b>{gs(arr)}</b></div>
-          {arrRows.map((e: any) => <div className="kv" key={e.id}><span>{e.concepto} <small className="muted">{monthLabel(e.mes)}{pagadoParcial(d, e.id) > 0 ? ` · ya pagaste ${gs(pagadoParcial(d, e.id))}` : ''}</small></span><span className="row" style={{ gap: 8, alignItems: 'center' }}><b>{gs(restante(d, e))}</b>{isAdmin && <button className="btn sm ghost" onClick={() => setPagoE(e)}>Pagar</button>}</span></div>)}
-          <div className="muted small">Sin pagar de meses anteriores. Cada uno queda en su mes con su monto original; podés pagarlo de a partes.</div></div>}
         <div className="sec-head"><h2>Egresos del mes</h2><span className="count">{pagados}/{r.egr.length}</span></div>
         <Progress value={prog} tone={prog === 1 ? 'full' : ''} />
         <div className="list" style={{ marginTop: 10 }}>
@@ -262,6 +254,11 @@ export default function Finanzas() {
               {isAdmin && !cerrada && <button className="x2" onClick={async () => { if (await ask(`¿Quitar "${e.concepto}" de este mes?`)) upd('egresos', e.id, { deleted_at: new Date().toISOString() }); }}>✕</button>}
             </div>))}
         </div>
+        {arr > 0 && <div className="arrastre">
+          <div className="sec-head"><h3>Deuda de meses anteriores</h3><b>{gs(arr)}</b></div>
+          {arrRows.map((e: any) => <div className="egreso" key={e.id}><div className="grow"><b>{e.concepto}</b> <small className="muted">{monthLabel(e.mes)}{pagadoParcial(d, e.id) > 0 ? ` · ya pagaste ${gs(pagadoParcial(d, e.id))} de ${gs(e.monto)}` : ''}</small></div><b>{gs(restante(d, e))}</b>{isAdmin && <button className="btn sm ghost" onClick={() => setPagoE(e)}>Pagar</button>}</div>)}
+          <div className="kv total"><span>A pagar este mes (egresos del mes + deuda anterior)</span><b>{gs(r.pend + arr)}</b></div>
+          <div className="muted small">Cada deuda queda en su mes con su monto original (el balance de ese mes no cambia), pero acá se suma porque hay que pagarla. Podés pagarla de a partes.</div></div>}
         {r.egr.some((e: any) => e.suma) && <div className="sumbar"><span>Pagados por vos este mes ({r.egr.filter((e: any) => e.suma).length})</span><b>{gs(sumaSel)}</b></div>}
         {!lock && <div className="row" style={{ gap: 8, flexWrap: 'wrap', marginTop: 10 }}><button className="btn sm" onClick={() => setAdd(true)}>+ Agregar egreso</button><button className="btn sm ghost" onClick={cargarConceptos}>Cargar fijos del mes</button></div>}
         <div className="muted small pad">Σ marca los gastos que pagás vos de tu bolsillo: quedan sumados en «Cuenta con vos» hasta que te los devuelvan.</div>
