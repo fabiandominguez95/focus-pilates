@@ -222,7 +222,7 @@ export default function Finanzas() {
   const lock = !isAdmin || cerrada;
 
   const cargarConceptos = async () => {
-    const have = new Set(r.egr.map((e: any) => e.concepto)); const rows = d.conceptos.filter((c: any) => c.activo !== false && c.fijo && !have.has(c.nombre)).map((c: any) => ({ mes: m, concepto: c.nombre, tipo: c.tipo, monto: Number(c.monto_default) || 0, pagado: false, suma: c.suma !== false && c.tipo === 'general' }));
+    const have = new Set(r.egr.map((e: any) => e.concepto)); const rows = d.conceptos.filter((c: any) => c.activo !== false && c.fijo && !have.has(c.nombre)).map((c: any) => ({ mes: m, concepto: c.nombre, tipo: c.tipo, monto: Number(c.monto_default) || 0, pagado: false, suma: false }));
     if (!rows.length) { toast('Ya están todos los conceptos fijos'); return; } await ins('egresos', rows); toast(`${rows.length} conceptos agregados`);
   };
   const toggleSum = (id: string) => setSum((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -301,13 +301,13 @@ export default function Finanzas() {
 function AddEgreso({ m, onClose }: { m: string; onClose: () => void }) {
   const { d, ins, toast } = useApp(); const have = new Set(d.egresos.filter((e: any) => e.mes === m).map((e: any) => e.concepto));
   const opts = d.conceptos.filter((c: any) => c.activo !== false && !have.has(c.nombre));
-  const [nombre, setNombre] = useState(''); const [monto, setMonto] = useState(''); const [suma, setSuma] = useState(true);
+  const [nombre, setNombre] = useState(''); const [monto, setMonto] = useState(''); const [suma, setSuma] = useState(false);
   return (
     <Sheet title="Agregar egreso" onClose={onClose}><div className="stack">
       {opts.length > 0 && <div className="chips wrap">{opts.map((c: any) => <button key={c.id} className="chip" onClick={() => { setNombre(c.nombre); setMonto(String(Math.round(c.monto_default || 0))); setSuma(c.tipo === 'general'); }}>{c.nombre}</button>)}</div>}
       <Field label="Concepto"><input value={nombre} onChange={(e) => setNombre(e.target.value)} /></Field>
       <Field label="Monto"><input inputMode="numeric" value={monto} onChange={(e) => setMonto(e.target.value.replace(/\D/g, ''))} /></Field>
-      <label className="check"><input type="checkbox" checked={suma} onChange={(e) => setSuma(e.target.checked)} /> Es gasto general (entra en la suma Σ)</label>
+      <label className="check"><input type="checkbox" checked={suma} onChange={(e) => setSuma(e.target.checked)} /> Lo pagué yo de mi bolsillo (la empresa me lo debe)</label>
       <button className="btn big" disabled={!nombre.trim()} onClick={async () => { try { await ins('egresos', { mes: m, concepto: nombre.trim(), tipo: 'general', monto: Number(monto) || 0, pagado: false, suma }); if (!d.conceptos.some((c: any) => c.nombre.toLowerCase() === nombre.trim().toLowerCase())) await ins('conceptos', { nombre: nombre.trim(), tipo: 'general', monto_default: Number(monto) || 0, suma: true, fijo: false, activo: true, orden: 99 }).catch(() => {}); onClose(); } catch (e: any) { toast('Error: ' + e.message); } }}>Agregar</button></div></Sheet>
   );
 }
