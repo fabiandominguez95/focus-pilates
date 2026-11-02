@@ -7,6 +7,7 @@ import { buildIndex, claseTerminada, estadoPersona } from '../logic';
 import { useWhats } from '../classes';
 import { useNoRenueva, NoRenuevaSheet } from '../norenueva';
 import { DeudaCard, AporteBtn } from '../deuda';
+import { PagoParcialSheet, pagadoParcial, restante } from '../egpagos';
 
 function NumInput({ value, onSave, disabled, className }: { value: any; onSave: (n: number) => void; disabled?: boolean; className?: string }) {
   const [v, setV] = useState(String(Math.round(Number(value) || 0))); useEffect(() => setV(String(Math.round(Number(value) || 0))), [value]);
@@ -42,12 +43,12 @@ export function useSalarioMes(m: string) {
 }
 
 // Cuánto falta para pagar el mes, y con qué se cubre: este mes vs. ganancia de meses anteriores
-function Cobertura({ m, r, cerrada, pc, inclIng, setInclIng, inclSal, setInclSal }: { m: string; r: any; cerrada: boolean; pc: any; inclIng: boolean; setInclIng: (b: boolean) => void; inclSal: boolean; setInclSal: (b: boolean) => void }) {
+function Cobertura({ m, r, cerrada, pc, inclIng, setInclIng, inclSal, setInclSal, arr, inclArr, setInclArr }: { m: string; r: any; cerrada: boolean; pc: any; inclIng: boolean; setInclIng: (b: boolean) => void; inclSal: boolean; setInclSal: (b: boolean) => void; arr: number; inclArr: boolean; setInclArr: (b: boolean) => void }) {
   const { d, hoy, isAdmin } = useApp(); const sal = useSalarioMes(m); const [det, setDet] = useState(false);
   const esActual = m >= monthOf(hoy);
   const otros = r.egr.filter((e: any) => e.tipo !== 'salario').reduce((a: number, e: any) => a + (Number(e.monto) || 0), 0);
   const salReal = r.egr.filter((e: any) => e.tipo === 'salario').reduce((a: number, e: any) => a + (Number(e.monto) || 0), 0);
-  const est = !cerrada && esActual; const metaHoy = !est ? r.egresos : otros + (inclSal ? Math.max(sal.proyectado, 0) : sal.devengado); const metaFin = !est ? r.egresos : otros + Math.max(sal.proyectado, 0);
+  const est = !cerrada && esActual; const ea = est && inclArr ? arr : 0; const metaHoy = (!est ? r.egresos : otros + (inclSal ? Math.max(sal.proyectado, 0) : sal.devengado)) + ea; const metaFin = (!est ? r.egresos : otros + Math.max(sal.proyectado, 0)) + ea;
   const reserva = useMemo(() => { const meses = allMonths(d, hoy).filter((x) => x < m); return Math.max(0, meses.reduce((a, x) => a + resumenMes(d, x).balance, 0)); }, [d, hoy, m]);
   const conMes = Math.min(r.ingresos, metaHoy); const falta0 = Math.max(0, metaHoy - conMes); const conReserva = Math.min(reserva, falta0); const falta1 = falta0 - conReserva;
   const aporteMes = (d.aportes || []).filter((x: any) => x.tipo === 'aporte' && x.mes === m).reduce((a: number, x: any) => a + (Number(x.monto) || 0), 0); const conAporte = Math.min(aporteMes, falta1); const falta = falta1 - conAporte;
@@ -58,6 +59,7 @@ function Cobertura({ m, r, cerrada, pc, inclIng, setInclIng, inclSal, setInclSal
       <div className="sec-head"><h3>¿Cuánto falta para pagar el mes?</h3></div>
       {est && <div className="chips wrap cob-chips"><span className="muted small">Estimar:</span>
         {pc.futuro && pc.faltan.length > 0 && <button className={'chip sm' + (inclIng ? ' on' : '')} onClick={() => setInclIng(!inclIng)}>{inclIng ? '✓ ' : ''}Renovaciones +{gs(pc.porCobrar)}</button>}
+        {arr > 0 && <button className={'chip sm' + (inclArr ? ' on' : '')} onClick={() => setInclArr(!inclArr)}>{inclArr ? '✓ ' : ''}Arrastre de meses anteriores +{gs(arr)}</button>}
         <button className={'chip sm' + (inclSal ? ' on' : '')} onClick={() => setInclSal(!inclSal)}>{inclSal ? '✓ ' : ''}Salario a fin de mes {gs(Math.max(sal.proyectado, 0))}</button></div>}
       <div className={'cob-t ' + (falta > 0 ? 'neg' : conReserva > 0 ? 'mid' : 'pos')}>{titulo}</div>
       <div className="cob-bar">
@@ -173,13 +175,14 @@ export function SalarioCalc({ m, onApply, cerrado }: { m: string; onApply?: (tot
 export default function Finanzas() {
   const { d, cfg, hoy, upd, ins, toast, isAdmin, reload } = useApp();
   const { ask, node } = useConfirm();
-  const [m, setM] = useState(monthOf(hoy)); const [sum, setSum] = useState<Set<string>>(new Set()); const [add, setAdd] = useState(false); const [sim, setSim] = useState(false); const [cierre, setCierre] = useState(false); const [verPagos, setVerPagos] = useState(false); const [saldoEd, setSaldoEd] = useState(false);
+  const [m, setM] = useState(monthOf(hoy)); const [sum, setSum] = useState<Set<string>>(new Set()); const [add, setAdd] = useState(false); const [sim, setSim] = useState(false); const [cierre, setCierre] = useState(false); const [verPagos, setVerPagos] = useState(false); const [saldoEd, setSaldoEd] = useState(false); const [pagoE, setPagoE] = useState<any>(null); const [inclArr, setInclArr] = useState(false);
   const r0 = useMemo(() => resumenMes(d, m), [d, m]); const [inclIng, setInclIng] = useState(false); const [inclSal, setInclSal] = useState(false); const pc = usePorCobrar(m, r0); const salE = useSalarioMes(m);
   const cerrada = d.cierres.find((c: any) => c.mes === m)?.estado === 'cerrado';
   const estOk = !cerrada && m >= monthOf(hoy); const extraIng = inclIng && pc.futuro ? pc.porCobrar : 0;
   const salCargado = r0.egr.filter((e: any) => e.tipo === 'salario').reduce((a: number, e: any) => a + (Number(e.monto) || 0), 0); const extraEgr = inclSal && estOk ? Math.max(salE.proyectado, 0) - salCargado : 0;
   const r = useMemo(() => (extraIng || extraEgr) ? { ...r0, ingresos: r0.ingresos + extraIng, egresos: r0.egresos + extraEgr, balance: r0.balance + extraIng - extraEgr } : r0, [r0, extraIng, extraEgr]);
   const idx = useMemo(() => buildIndex(d), [d]);
+  const arrRows = useMemo(() => d.egresos.filter((e: any) => e.mes < m && !e.suma && restante(d, e) > 0).sort((a: any, b: any) => a.mes.localeCompare(b.mes)), [d.egresos, d.egpagos, m]); const arr = arrRows.reduce((a: number, e: any) => a + restante(d, e), 0);
   const saldo = ultimoSaldo(d); const caja = useMemo(() => {
     const base = Number(saldo?.monto) || 0; const sf = saldo?.fecha || ''; const sc = saldo?.created_at || ''; const N = (x: any) => Number(x) || 0;
     const nuevo = (f: string, c: string) => !!f && (f > sf || (f === sf && !!c && c > sc));
@@ -187,12 +190,13 @@ export default function Finanzas() {
     const mov = (d.aportes || []).filter((x: any) => (x.created_at || '') > sc);
     const ap = mov.filter((x: any) => x.tipo === 'aporte').reduce((a: number, x: any) => a + N(x.monto), 0); const dv = mov.filter((x: any) => x.tipo === 'devolucion').reduce((a: number, x: any) => a + N(x.monto), 0);
     const propio = (e: any) => e.suma; // lo pagó el dueño: sale de la cuenta recién cuando se lo devuelven
-    const pag = d.egresos.filter((e: any) => !propio(e) && e.pagado && e.pagado_fecha && e.pagado_fecha >= sf).reduce((a: number, e: any) => a + N(e.monto), 0);
+    const pagP = (d.egpagos || []).filter((x: any) => nuevo(x.fecha, x.created_at) && !propio(d.egresos.find((e: any) => e.id === x.egreso_id) || {})).reduce((a: number, x: any) => a + N(x.monto), 0);
+    const pag = pagP + d.egresos.filter((e: any) => !propio(e) && e.pagado && e.pagado_fecha && e.pagado_fecha >= sf).reduce((a: number, e: any) => a + Math.max(0, N(e.monto) - pagadoParcial(d, e.id)), 0);
     const reint = d.egresos.filter((e: any) => propio(e) && e.reintegrado && e.reintegrado_fecha && e.reintegrado_fecha >= sf).reduce((a: number, e: any) => a + N(e.monto), 0);
-    const pend = d.egresos.filter((e: any) => !propio(e) && !e.pagado).reduce((a: number, e: any) => a + N(e.monto), 0);
+    const pend = d.egresos.filter((e: any) => !propio(e)).reduce((a: number, e: any) => a + restante(d, e), 0);
     const hoyCuenta = base + ing + ap - dv - pag - reint;
     return { base, ing, ap, dv, pag, reint, pend, hoyCuenta, neto: hoyCuenta - pend };
-  }, [d.suscripciones, d.ventas, d.aportes, d.egresos, saldo]); const neto = caja.neto;
+  }, [d.suscripciones, d.ventas, d.aportes, d.egresos, d.egpagos, saldo]); const neto = caja.neto;
   const pagados = r.egr.filter((e: any) => e.pagado).length; const prog = r.egr.length ? pagados / r.egr.length : 0;
   const sumaSel = r.egr.filter((e: any) => e.suma).reduce((a: number, e: any) => a + (Number(e.monto) || 0), 0);
   const prev3 = [1, 2, 3].map((n) => resumenMes(d, addMonthKey(m, -n))).filter((x) => x.nPagos > 0);
@@ -223,7 +227,7 @@ export default function Finanzas() {
         <div className="kpi"><span>Equilibrio</span><b>{equilibrio} personas</b><small>ticket prom. {gs(ticket)}</small></div>
       </div>
 
-      <Cobertura m={m} r={r} cerrada={cerrada} pc={pc} inclIng={inclIng} setInclIng={setInclIng} inclSal={inclSal} setInclSal={setInclSal} />
+      <Cobertura m={m} r={r} cerrada={cerrada} pc={pc} inclIng={inclIng} setInclIng={setInclIng} inclSal={inclSal} setInclSal={setInclSal} arr={arr} inclArr={inclArr} setInclArr={setInclArr} />
       <PorCobrar m={m} r={r0} pc={pc} />
       {isAdmin && <DeudaCard m={m} />}
 
@@ -235,12 +239,16 @@ export default function Finanzas() {
         {caja.pag > 0 && <div className="kv small"><span>− Egresos pagados desde entonces</span><b>{gs(caja.pag)}</b></div>}
         {caja.dv + caja.reint > 0 && <div className="kv small"><span>− Devoluciones a vos</span><b>{gs(caja.dv + caja.reint)}</b></div>}
         <div className="kv"><span><b>En cuenta ahora (estimado)</b></span><b>{gs(caja.hoyCuenta)}</b></div>
-        <div className="kv"><span>− Egresos sin pagar (todos los meses)</span><b>{gs(caja.pend)}</b></div>
+        <div className="kv"><span>− Egresos sin pagar (todos los meses, descontando pagos parciales)</span><b>{gs(caja.pend)}</b></div>
         <div className={'kv total ' + (neto >= 0 ? 'pos' : 'neg')}><span>{neto >= 0 ? 'Queda después de pagar todo' : 'Falta para pagar todo'}</span><b>{gs(Math.abs(neto))}</b></div>
         <div className="muted small">Se calcula solo: el último saldo que cargaste, más cobros y aportes, menos lo que marques como pagado. Si no coincide con el banco, tocá Actualizar. Los gastos que pagaste vos (Σ) no salen de la cuenta hasta que te los devuelvan.</div>
       </section>
 
       <section>
+        {arr > 0 && <div className="box" style={{ marginBottom: 10 }}>
+          <div className="sec-head"><h3>Arrastre de meses anteriores</h3><b>{gs(arr)}</b></div>
+          {arrRows.map((e: any) => <div className="kv" key={e.id}><span>{e.concepto} <small className="muted">{monthLabel(e.mes)}{pagadoParcial(d, e.id) > 0 ? ` · ya pagaste ${gs(pagadoParcial(d, e.id))}` : ''}</small></span><span className="row" style={{ gap: 8, alignItems: 'center' }}><b>{gs(restante(d, e))}</b>{isAdmin && <button className="btn sm ghost" onClick={() => setPagoE(e)}>Pagar</button>}</span></div>)}
+          <div className="muted small">Sin pagar de meses anteriores. Cada uno queda en su mes con su monto original; podés pagarlo de a partes.</div></div>}
         <div className="sec-head"><h2>Egresos del mes</h2><span className="count">{pagados}/{r.egr.length}</span></div>
         <Progress value={prog} tone={prog === 1 ? 'full' : ''} />
         <div className="list" style={{ marginTop: 10 }}>
@@ -248,7 +256,7 @@ export default function Finanzas() {
           {[...r.egr].sort((a: any, b: any) => (a.tipo === 'alquiler' ? -2 : a.tipo === 'salario' ? -1 : 0) - (b.tipo === 'alquiler' ? -2 : b.tipo === 'salario' ? -1 : 0)).map((e: any) => (
             <div key={e.id} className={'egreso' + (e.pagado ? ' paid' : '')}>
               <button className={'ck' + (e.pagado ? ' on' : '')} disabled={lock} onClick={() => upd('egresos', e.id, { pagado: !e.pagado, pagado_fecha: !e.pagado ? hoy : null }).catch((er: any) => toast(er.message))} aria-label="Pagado">{e.pagado ? '✓' : ''}</button>
-              <div className="grow"><b>{e.concepto}</b></div>
+              <div className="grow"><b>{e.concepto}</b>{!e.pagado && !e.suma && pagadoParcial(d, e.id) > 0 && <small className="muted"> · pagado {gs(pagadoParcial(d, e.id))}, resta {gs(restante(d, e))}</small>}{isAdmin && !e.pagado && !e.suma && <div><button className="link-btn" onClick={() => setPagoE(e)}>Pagar parte</button></div>}</div>
               <NumInput value={e.monto} disabled={lock} onSave={(n) => upd('egresos', e.id, { monto: n }).catch((er: any) => toast(er.message))} />
               {e.tipo === 'general' && <button className={'sigma' + (e.suma ? ' on' : '')} disabled={!isAdmin} onClick={() => upd('egresos', e.id, { suma: !e.suma, ...(e.suma ? { reintegrado: false, reintegrado_fecha: null } : {}) }).catch((er: any) => toast(er.message))} title="Lo pagué yo (me lo tienen que devolver)">Σ</button>}
               {isAdmin && !cerrada && <button className="x2" onClick={async () => { if (await ask(`¿Quitar "${e.concepto}" de este mes?`)) upd('egresos', e.id, { deleted_at: new Date().toISOString() }); }}>✕</button>}
@@ -271,6 +279,7 @@ export default function Finanzas() {
       {add && <AddEgreso m={m} onClose={() => setAdd(false)} />}
       {sim && <Sheet title={`Simulador · ${monthLabel(m)}`} onClose={() => setSim(false)}><SalarioCalc m={m} onApply={isAdmin && !cerrada ? aplicarSalario : undefined} cerrado={false} /></Sheet>}
       {cierre && <CierreSheet m={m} cerrada={cerrada} r={r} onClose={() => setCierre(false)} aplicar={aplicarSalario} />}
+      {pagoE && <PagoParcialSheet e={d.egresos.find((x: any) => x.id === pagoE.id) || pagoE} onClose={() => setPagoE(null)} />}
       {saldoEd && <SaldoSheet onClose={() => setSaldoEd(false)} />}
     </div>
   );

@@ -155,3 +155,4 @@ html,body{overscroll-behavior-y:contain}
 .row-card.rev,.row-card.rev.aus,.row-card.rev.cancel{background:var(--done);border-color:var(--done-b);opacity:1}.row-card.rev.aus{border-left:3px solid var(--neg)}.row-card.rev.cancel{border-left:3px solid var(--sage)}
 .badge.promo{background:#fbeccb;border-color:#e3b865;color:#7a5200}
 @media (prefers-color-scheme:dark){.badge.promo{background:#3d2e10;border-color:#7a5a1f;color:#f1d79c}}
+.link-btn{background:none;border:0;padding:2px 0;color:var(--sand);font-size:12px;font-weight:600;text-decoration:underline}
