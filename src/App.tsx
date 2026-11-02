@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Provider, useApp } from './store';
+import { useAutoClases } from './autoclases';
 import { hasSession, login, logout, changeOwnPassword } from './api';
 import Home from './pages/Home';
 import Agenda from './pages/Agenda';
@@ -39,7 +40,7 @@ const L: Record<string, string> = { hoy: 'Hoy', agenda: 'Agenda', clientes: 'Cli
 const parseHash = () => { const [v, sub] = location.hash.slice(1).split('/'); return { v: ((['hoy', 'agenda', 'clientes', 'seguimiento', 'productos', 'finanzas', 'reporte', 'backup', 'config'].includes(v) ? v : 'hoy') as View), sub: sub || '' }; };
 
 function Shell() {
-  const { me, isAdmin, loading, err, reload } = useApp();
+  const { me, isAdmin, loading, err, reload } = useApp(); useAutoClases();
   const [h, setH] = useState(parseHash); const [pid, setPid] = useState<string | null>(null); const [pwSheet, setPwSheet] = useState(false); const [menu, setMenu] = useState(false);
   useEffect(() => { const f = () => { setH(parseHash()); setMenu(false); window.scrollTo(0, 0); }; window.addEventListener('hashchange', f); return () => window.removeEventListener('hashchange', f); }, []);
   const go = (v: string) => { location.hash = v; };

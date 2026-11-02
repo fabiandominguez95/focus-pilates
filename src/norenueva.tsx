@@ -6,14 +6,14 @@ import { Sheet, Field } from './ui';
 export const MOTIVOS = ['Se mudó', 'Salud', 'Económico', 'Horarios / tiempo', 'Viaje', 'Otro'];
 
 export function useNoRenueva() {
-  const { d, ins, upd, me, toast } = useApp();
+  const { d, ins, upd, me, toast, hoy } = useApp();
   const map = useMemo(() => {
     const m = new Map<string, { id: string; sub: string; motivo: string }>();
     d.avisos.forEach((a: any) => { if (a.tipo !== 'no_renueva') return; const [sub, ...rest] = String(a.ref || '').split('|'); m.set(a.persona_id, { id: a.id, sub, motivo: rest.join('|') }); });
     return m;
   }, [d.avisos]);
   const marcado = (personaId: string, sub: any) => { const x = map.get(personaId); return !!x && !!sub && x.sub === sub.id ? x : null; };
-  const marcar = async (p: any, sub: any, motivo: string) => { try { await ins('avisos', { persona_id: p.id, tipo: 'no_renueva', ref: sub.id + '|' + motivo, usuario: me?.nick }); toast('Anotado: no va a renovar'); } catch (e: any) { toast('Error: ' + e.message); } };
+  const marcar = async (p: any, sub: any, motivo: string) => { try { await ins('avisos', { persona_id: p.id, tipo: 'no_renueva', ref: sub.id + '|' + motivo, usuario: me?.nick }); let q = 0; for (const c of d.clases.filter((c: any) => c.persona_id === p.id && c.tipo === 'regular' && c.estado === 'agendada' && c.suscripcion_id === sub.id && c.fecha >= hoy && c.fecha > sub.fin)) { await upd('clases', c.id, { deleted_at: new Date().toISOString() }); q++; } toast('Anotado: no va a renovar' + (q ? ` · ${q} clases futuras quitadas` : '')); } catch (e: any) { toast('Error: ' + e.message); } };
   const deshacer = async (personaId: string) => { try { for (const a of d.avisos.filter((a: any) => a.persona_id === personaId && a.tipo === 'no_renueva')) await upd('avisos', a.id, { deleted_at: new Date().toISOString() }); toast('Vuelve a la lista'); } catch (e: any) { toast('Error: ' + e.message); } };
   return { map, marcado, marcar, deshacer };
 }
