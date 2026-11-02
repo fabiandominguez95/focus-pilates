@@ -7,7 +7,7 @@ export const TABLES: Record<string, [string, string]> = {
   bloqueos: ['fp_bloqueos', 'fecha'], productos: ['fp_productos', 'nombre'], ventas: ['fp_ventas', 'fecha'], egresos: ['fp_egresos', 'mes'],
   cierres: ['fp_cierres', 'mes'], saldos: ['fp_saldos', 'created_at'], planes: ['fp_planes', 'orden'], promos: ['fp_promos', 'nombre'],
   metodos: ['fp_metodos_pago', 'orden'], profesoras: ['fp_profesoras', 'nombre'], conceptos: ['fp_egreso_conceptos', 'orden'], avisos: ['fp_avisos', 'creado_en'],
-  users: ['fp_users', 'nick'], config: ['fp_config', 'key'],
+  users: ['fp_users', 'nick'], config: ['fp_config', 'key'], aportes: ['fp_aportes', 'fecha'],
 };
 export const DEFAULT_CFG: any = {
   apertura: '08:00', cierre: '20:00', cupo: 4, duracion_min: 60, pais: 'PY', pais_tel: '595', dias_habiles_semana: [1, 2, 3, 4, 5], recup_dias: 15,

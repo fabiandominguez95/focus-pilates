@@ -6,6 +6,7 @@ import { addMonthKey, diasHabilesMes, feriados, fmtDate, gs, monthLabel, monthOf
 import { buildIndex, claseTerminada, estadoPersona } from '../logic';
 import { useWhats } from '../classes';
 import { useNoRenueva, NoRenuevaSheet } from '../norenueva';
+import { DeudaCard, AporteBtn } from '../deuda';
 
 function NumInput({ value, onSave, disabled, className }: { value: any; onSave: (n: number) => void; disabled?: boolean; className?: string }) {
   const [v, setV] = useState(String(Math.round(Number(value) || 0))); useEffect(() => setV(String(Math.round(Number(value) || 0))), [value]);
@@ -42,7 +43,7 @@ export function useSalarioMes(m: string) {
 
 // Cuánto falta para pagar el mes, y con qué se cubre: este mes vs. ganancia de meses anteriores
 function Cobertura({ m, r, cerrada, pc, inclIng, setInclIng, inclSal, setInclSal }: { m: string; r: any; cerrada: boolean; pc: any; inclIng: boolean; setInclIng: (b: boolean) => void; inclSal: boolean; setInclSal: (b: boolean) => void }) {
-  const { d, hoy } = useApp(); const sal = useSalarioMes(m); const [det, setDet] = useState(false);
+  const { d, hoy, isAdmin } = useApp(); const sal = useSalarioMes(m); const [det, setDet] = useState(false);
   const esActual = m >= monthOf(hoy);
   const otros = r.egr.filter((e: any) => e.tipo !== 'salario').reduce((a: number, e: any) => a + (Number(e.monto) || 0), 0);
   const salReal = r.egr.filter((e: any) => e.tipo === 'salario').reduce((a: number, e: any) => a + (Number(e.monto) || 0), 0);
@@ -73,6 +74,7 @@ function Cobertura({ m, r, cerrada, pc, inclIng, setInclIng, inclSal, setInclSal
       {metaFin > metaHoy && !inclSal && <div className="kv"><span>Proyectado a fin de mes (salarios suben con las clases)</span><b>{gs(metaFin)}</b></div>}
       <div className="kv"><span>Ingresos de este mes{inclIng && pc.futuro ? ' (con estimado)' : ''}</span><b>{gs(r.ingresos)}</b></div>
       {r.ingresos > metaHoy && metaHoy > 0 && <div className="kv"><span>Sobra de este mes</span><b>{gs(r.ingresos - metaHoy)}</b></div>}
+      {isAdmin && <AporteBtn m={m} falta={falta} />}
       <div className="muted small">Ganancia acumulada de meses anteriores disponible: {gs(reserva)}. El salario se calcula con las horas ya dadas y va subiendo; la franja clara es lo que aún se suma hasta fin de mes.</div>
     </section>
   );
@@ -178,7 +180,7 @@ export default function Finanzas() {
   const idx = useMemo(() => buildIndex(d), [d]);
   const saldo = ultimoSaldo(d); const neto = (Number(saldo?.monto) || 0) - r.pend;
   const pagados = r.egr.filter((e: any) => e.pagado).length; const prog = r.egr.length ? pagados / r.egr.length : 0;
-  const sumaSel = r.egr.filter((e: any) => sum.has(e.id)).reduce((a: number, e: any) => a + (Number(e.monto) || 0), 0);
+  const sumaSel = r.egr.filter((e: any) => e.suma).reduce((a: number, e: any) => a + (Number(e.monto) || 0), 0);
   const prev3 = [1, 2, 3].map((n) => resumenMes(d, addMonthKey(m, -n))).filter((x) => x.nPagos > 0);
   const ticket = prev3.length ? prev3.reduce((a, x) => a + x.ingSubs, 0) / prev3.reduce((a, x) => a + x.nPagos, 0) : r.nPagos ? r.ingSubs / r.nPagos : 0;
   const costo = r.egresos || (prev3.length ? prev3.reduce((a, x) => a + x.egresos, 0) / prev3.length : 0);
@@ -209,6 +211,7 @@ export default function Finanzas() {
 
       <Cobertura m={m} r={r} cerrada={cerrada} pc={pc} inclIng={inclIng} setInclIng={setInclIng} inclSal={inclSal} setInclSal={setInclSal} />
       <PorCobrar m={m} r={r0} pc={pc} />
+      {isAdmin && <DeudaCard m={m} />}
 
       <section className="box">
         <div className="sec-head"><h3>Posición de cuenta</h3>{isAdmin && <button className="btn sm ghost" onClick={() => setSaldoEd(true)}>Actualizar</button>}</div>
@@ -228,13 +231,13 @@ export default function Finanzas() {
               <button className={'ck' + (e.pagado ? ' on' : '')} disabled={lock} onClick={() => upd('egresos', e.id, { pagado: !e.pagado, pagado_fecha: !e.pagado ? hoy : null }).catch((er: any) => toast(er.message))} aria-label="Pagado">{e.pagado ? '✓' : ''}</button>
               <div className="grow"><b>{e.concepto}</b></div>
               <NumInput value={e.monto} disabled={lock} onSave={(n) => upd('egresos', e.id, { monto: n }).catch((er: any) => toast(er.message))} />
-              {e.tipo === 'general' && <button className={'sigma' + (sum.has(e.id) ? ' on' : '')} onClick={() => toggleSum(e.id)} title="Sumar">Σ</button>}
+              {e.tipo === 'general' && <button className={'sigma' + (e.suma ? ' on' : '')} disabled={!isAdmin} onClick={() => upd('egresos', e.id, { suma: !e.suma, ...(e.suma ? { reintegrado: false, reintegrado_fecha: null } : {}) }).catch((er: any) => toast(er.message))} title="Lo pagué yo (me lo tienen que devolver)">Σ</button>}
               {isAdmin && !cerrada && <button className="x2" onClick={async () => { if (await ask(`¿Quitar "${e.concepto}" de este mes?`)) upd('egresos', e.id, { deleted_at: new Date().toISOString() }); }}>✕</button>}
             </div>))}
         </div>
-        {sum.size > 0 && <div className="sumbar"><span>Suma de seleccionados ({sum.size})</span><b>{gs(sumaSel)}</b><button className="chip" onClick={() => setSum(new Set())}>Limpiar</button></div>}
+        {r.egr.some((e: any) => e.suma) && <div className="sumbar"><span>Pagados por vos este mes ({r.egr.filter((e: any) => e.suma).length})</span><b>{gs(sumaSel)}</b></div>}
         {!lock && <div className="row" style={{ gap: 8, flexWrap: 'wrap', marginTop: 10 }}><button className="btn sm" onClick={() => setAdd(true)}>+ Agregar egreso</button><button className="btn sm ghost" onClick={cargarConceptos}>Cargar fijos del mes</button></div>}
-        <div className="muted small pad">Σ marca los gastos generales que pagás vos y te reintegran: la suma queda abajo, aparte del alquiler y el salario.</div>
+        <div className="muted small pad">Σ marca los gastos que pagás vos de tu bolsillo: quedan sumados en «Cuenta con vos» hasta que te los devuelvan.</div>
       </section>
 
       <section className="row2">
