@@ -161,12 +161,15 @@ export function RenewSheet({ persona, onClose, onDone }: { persona: any; onClose
 export function PagoSheet({ sub, onClose }: { sub: any; onClose: () => void }) {
   const { d, hoy, upd, toast } = useApp();
   const [f, setF] = useState(sub.pago_fecha || hoy); const [m, setM] = useState(sub.pago_metodo_id || d.metodos[0]?.id || ''); const [monto, setMonto] = useState(String(sub.pago_monto ?? sub.precio_final ?? ''));
+  const [ini, setIni] = useState(sub.inicio); const [fin, setFin] = useState(sub.fin); const unica = sub.tipo === 'unica';
   return (
     <Sheet title="Pago de la suscripción" onClose={onClose}>
       <div className="stack">
+        <div className="row2"><Field label="Inicio del período"><input type="date" value={ini} onChange={(e) => { setIni(e.target.value); if (e.target.value && !unica) setFin(subFin(e.target.value)); }} /></Field><Field label="Fin del período"><input type="date" value={fin} onChange={(e) => setFin(e.target.value)} /></Field></div>
+        {(ini !== sub.inicio || fin !== sub.fin) && <div className="muted small">Cambiás la vigencia de este plan. Las clases ya agendadas no se mueven solas; revisalas después en la ficha.</div>}
         <div className="row2"><Field label="Fecha"><input type="date" value={f} onChange={(e) => setF(e.target.value)} /></Field><Field label="Método"><select value={m} onChange={(e) => setM(e.target.value)}>{d.metodos.map((x: any) => <option key={x.id} value={x.id}>{x.nombre}</option>)}</select></Field></div>
         <Field label="Monto"><input inputMode="numeric" value={monto} onChange={(e) => setMonto(e.target.value.replace(/\D/g, ''))} /></Field>
-        <button className="btn big" onClick={async () => { try { await upd('suscripciones', sub.id, { pago_fecha: f, pago_metodo_id: m || null, pago_monto: Number(monto) || 0 }); toast('Pago guardado'); onClose(); } catch (e: any) { toast('Error: ' + e.message); } }}>Guardar pago</button>
+        <button className="btn big" onClick={async () => { try { if (!ini || !fin || fin < ini) { toast('El fin no puede ser antes del inicio'); return; } await upd('suscripciones', sub.id, { inicio: ini, fin, pago_fecha: f, pago_metodo_id: m || null, pago_monto: Number(monto) || 0 }); toast('Guardado'); onClose(); } catch (e: any) { toast('Error: ' + e.message); } }}>Guardar pago</button>
         {sub.pago_fecha && <button className="btn ghost danger" onClick={async () => { await upd('suscripciones', sub.id, { pago_fecha: null, pago_monto: null, pago_metodo_id: null }); onClose(); }}>Quitar pago</button>}
       </div>
     </Sheet>
