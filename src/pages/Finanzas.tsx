@@ -201,7 +201,7 @@ export default function Finanzas() {
   const arrRows = useMemo(() => d.egresos.filter((e: any) => e.mes < m && !e.suma && restante(d, e) > 0).sort((a: any, b: any) => a.mes.localeCompare(b.mes)), [d.egresos, d.egpagos, m]); const arr = arrRows.reduce((a: number, e: any) => a + restante(d, e), 0);
   const saldo = ultimoSaldo(d); const caja = useMemo(() => {
     const base = Number(saldo?.monto) || 0; const sf = saldo?.fecha || ''; const sc = saldo?.created_at || ''; const N = (x: any) => Number(x) || 0;
-    const nuevo = (f: string, c: string) => !!f && (f > sf || (f === sf && !!c && c > sc));
+    const nuevo = (f: string, c: string) => !!f && f <= hoy && (f > sf || (f === sf && !!c && c > sc));
     const ing = d.suscripciones.filter((x: any) => !x.cancelada && x.pago_fecha && nuevo(x.pago_fecha, x.created_at)).reduce((a: number, x: any) => a + N(x.pago_monto), 0) + d.ventas.filter((x: any) => nuevo(x.fecha, x.created_at)).reduce((a: number, x: any) => a + N(x.total), 0);
     const mov = (d.aportes || []).filter((x: any) => (x.created_at || '') > sc);
     const ap = mov.filter((x: any) => x.tipo === 'aporte').reduce((a: number, x: any) => a + N(x.monto), 0); const dv = mov.filter((x: any) => x.tipo === 'devolucion').reduce((a: number, x: any) => a + N(x.monto), 0);
