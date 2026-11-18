@@ -240,7 +240,7 @@ export function ClassSheet({ c, onClose, onOpenPersona, startMode = '' }: { c: a
 export function NewClassSheet({ onClose, presetFecha, presetHora, presetPersona, onNuevo }: { onClose: () => void; presetFecha?: string; presetHora?: string; presetPersona?: string; onNuevo?: () => void }) {
   const { d, hoy, upd, cfg } = useApp(); const ops = useClassOps(); const { check, node } = useSlotCheck(); const { ask, node: node2 } = useConfirm();
   const [pid, setPid] = useState(presetPersona || ''); const [tipo, setTipo] = useState('prueba'); const [aus, setAus] = useState(''); const [sinFalta, setSinFalta] = useState(false);
-  const [f, setF] = useState(presetFecha || hoy); const [h, setH] = useState(presetHora || ''); const [exc, setExc] = useState(false);
+  const [f, setF] = useState(presetFecha || hoy); const [h, setH] = useState(presetHora || ''); const [exc, setExc] = useState(false); const [renew, setRenew] = useState(false);
   const idx = useMemo(() => buildIndex(d), [d]);
   const p = pid ? idx.personaById.get(pid) : null;
   const faltas = useMemo(() => (p ? (idx.clasesByP.get(p.id) || []).filter((c: any) => c.estado === 'ausente' && !c.ausencia_resolucion && c.tipo !== 'prueba').sort((a: any, b: any) => b.fecha.localeCompare(a.fecha)) : []), [p, idx]);
@@ -263,17 +263,19 @@ export function NewClassSheet({ onClose, presetFecha, presetHora, presetPersona,
       {node}{node2}
       <div className="stack">
         {!presetPersona && <Field label="Persona"><PersonaPicker value={pid} onChange={(v) => { setPid(v); setAus(''); }} allowCreate={false} autoFocus />{onNuevo && !pid && <button type="button" className="btn ghost sm" style={{ marginTop: 6 }} onClick={onNuevo}>+ Cliente nuevo (con celular, prueba o inscripción)</button>}</Field>}
-        <Field label="Tipo de clase"><div className="chips wrap">{([['prueba', 'Prueba (primera vez)'], ['recuperacion', 'Recuperación'], ['unica', 'Clase única (excepcional)']] as const).map(([k, l]) => <button type="button" key={k} className={'chip' + (tipo === k ? ' on' : '')} onClick={() => setTipo(k)}>{l}</button>)}</div></Field>
+        <Field label="Tipo de clase"><div className="chips wrap">{([['prueba', 'Prueba (primera vez)'], ['recuperacion', 'Recuperación'], ['unica', 'Clase única (excepcional)'], ['inscripcion', 'Inscripción (plan mensual)']] as const).map(([k, l]) => <button type="button" key={k} className={'chip' + (tipo === k ? ' on' : '')} onClick={() => setTipo(k)}>{l}</button>)}</div></Field>
+        {tipo === 'inscripcion' && <div className="muted small">{p ? ((idx.subsByP.get(p.id) || []).some((x: any) => x.tipo !== 'unica') ? 'Renueva o cambia su plan mensual: elegís plan, días y horarios.' : 'Todavía no tiene plan: elegís plan, días y horarios, y se agendan sus clases fijas.') : 'Elegí primero a la persona.'} Después podés cambiar el plan o los días desde su ficha.</div>}
         {tipo === 'recuperacion' && p && (
           <Field label="¿Qué falta recupera?">
             {faltas.length === 0 ? <div className="muted small">No tiene faltas pendientes de recuperar.</div>
               : <div className="stack" style={{ gap: 6 }}>{faltas.map((x: any) => { const l = recupRestante(x, hoy, cfg.recup_dias); return <button type="button" key={x.id} className={'opt' + (aus === x.id ? ' on' : '')} onClick={() => { setAus(x.id); setSinFalta(false); }}><b>{fmtDate(x.fecha)} · {hm(x.hora)}</b><span className="muted small">{motivoLabel(x.motivo_ausencia)} · {sinCulpa(x) ? 'sin vencimiento' : l >= 0 ? `quedan ${l} días` : 'plazo vencido (excepción)'}</span></button>; })}</div>}
             <label className="check" style={{ marginTop: 8 }}><input type="checkbox" checked={sinFalta} onChange={(e) => { setSinFalta(e.target.checked); if (e.target.checked) setAus(''); }} /> Recuperación sin falta registrada</label>
           </Field>)}
-        <SlotPicker fecha={f} hora={h} onChange={(a, b) => { setF(a); setH(b); }} />
+        {tipo !== 'inscripcion' && <SlotPicker fecha={f} hora={h} onChange={(a, b) => { setF(a); setH(b); }} />}
         {fueraPlazo && <label className="check warn"><input type="checkbox" checked={exc} onChange={(e) => setExc(e.target.checked)} /> Fuera del plazo de {cfg.recup_dias} días: recuperar con excepción</label>}
-        <button className="btn big" disabled={!listo} onClick={save}>Agendar</button>
+        {tipo === 'inscripcion' ? <button className="btn big" disabled={!p} onClick={() => setRenew(true)}>Continuar a inscripción →</button> : <button className="btn big" disabled={!listo} onClick={save}>Agendar</button>}
       </div>
+      {renew && p && <RenewSheet persona={p} onClose={() => setRenew(false)} onDone={onClose} />}
     </Sheet>
   );
 }

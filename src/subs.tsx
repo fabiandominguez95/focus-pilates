@@ -159,17 +159,68 @@ export function RenewSheet({ persona, onClose, onDone }: { persona: any; onClose
 }
 
 export function PagoSheet({ sub, onClose }: { sub: any; onClose: () => void }) {
-  const { d, hoy, upd, toast } = useApp();
+  const { d, cfg, hoy, ins, upd, toast, me } = useApp();
+  const idx = useMemo(() => buildIndex(d), [d]); const persona = idx.personaById.get(sub.persona_id);
   const [f, setF] = useState(sub.pago_fecha || hoy); const [m, setM] = useState(sub.pago_metodo_id || d.metodos[0]?.id || ''); const [monto, setMonto] = useState(String(sub.pago_monto ?? sub.precio_final ?? ''));
   const [ini, setIni] = useState(sub.inicio); const [fin, setFin] = useState(sub.fin); const unica = sub.tipo === 'unica';
+  // cambiar plan / días
+  const planes = d.planes.filter((x: any) => x.activo !== false && x.tipo !== 'unica'); const [camb, setCamb] = useState(false); const [planId, setPlanId] = useState(sub.plan_id || planes[0]?.id);
+  const plan = idx.planById.get(planId); const nSlots = Math.max(1, Number(plan?.clases_semana) || 1);
+  const actuales: any[] = (idx.horByP.get(sub.persona_id) || []).slice().sort((a: any, b: any) => a.dia - b.dia || hm(a.hora).localeCompare(hm(b.hora)));
+  const horasOk = horasDisponibles(cfg);
+  const defSlots = (n: number, base: Slot[]): Slot[] => { const o = base.slice(0, n); const dd = [1, 3, 5, 2, 4, 6]; while (o.length < n) o.push({ dia: dd[o.length % 6], hora: horasOk[Math.min(10, horasOk.length - 1)] || '18:00' }); return o; };
+  const [slotsRaw, setSlots] = useState<Slot[]>(() => actuales.map((h) => ({ dia: h.dia, hora: hm(h.hora) }))); const slots = defSlots(nSlots, slotsRaw);
+  const setSlot = (i: number, patch: Partial<Slot>) => setSlots(slots.map((x, k) => (k === i ? { ...x, ...patch } : x)));
+  const dupSlots = new Set(slots.map((x) => x.dia + x.hora)).size !== slots.length;
+  const lista = Number(plan?.precio) || 0; const nuevoFinal = aplicarDescuento(lista, sub.descuento_tipo, sub.descuento_valor);
+  const futuras = d.clases.filter((c: any) => c.suscripcion_id === sub.id && c.tipo === 'regular' && c.estado === 'agendada' && c.fecha >= hoy);
+  const [busy, setBusy] = useState(false); const [reg, setReg] = useState(true); const verPago = !!sub.pago_fecha || reg;
+  const elegirPlan = (id: string) => { setPlanId(id); const pl = idx.planById.get(id); const nf = aplicarDescuento(Number(pl?.precio) || 0, sub.descuento_tipo, sub.descuento_valor); if (!sub.pago_fecha) setMonto(String(nf)); };
+  const guardar = async () => {
+    if (!ini || !fin || fin < ini) { toast('El fin no puede ser antes del inicio'); return; }
+    if (camb && dupSlots) { toast('Hay dos horarios repetidos'); return; }
+    setBusy(true);
+    try {
+      const patch: any = { inicio: ini, fin }; if (verPago) Object.assign(patch, { pago_fecha: f, pago_metodo_id: m || null, pago_monto: Number(monto) || 0 });
+      if (camb && plan) Object.assign(patch, { plan_id: plan.id, plan_nombre: plan.nombre, clases_semana: plan.clases_semana, precio_lista: lista, precio_final: nuevoFinal });
+      await upd('suscripciones', sub.id, patch);
+      let msg = 'Guardado';
+      if (camb && plan && persona) {
+        const key = (x: Slot) => x.dia + '|' + x.hora;
+        for (const h of actuales) if (!slots.some((n) => key(n) === h.dia + '|' + hm(h.hora))) await upd('horarios', h.id, { activo: false });
+        const profe = me?.profesora_id || d.profesoras.find((x: any) => x.tipo === 'fija')?.id || null;
+        const nuevos = slots.filter((n) => !actuales.some((h) => h.dia + '|' + hm(h.hora) === key(n))).map((n) => ({ persona_id: persona.id, dia: n.dia, hora: n.hora, profesora_id: profe, activo: true }));
+        if (nuevos.length) await ins('horarios', nuevos);
+        // reagenda las clases fijas que todavía no se dieron
+        const borrar = new Set(futuras.map((c: any) => c.id)); const ahora = new Date().toISOString();
+        for (const c of futuras) await upd('clases', c.id, { deleted_at: ahora });
+        const subAct = { ...sub, ...patch }; const d2 = { ...d, clases: d.clases.filter((c: any) => !borrar.has(c.id)) };
+        const { rows, omitidas } = filasClases(persona, subAct, slots, d2, hoy, profe);
+        if (rows.length) await ins('clases', rows);
+        msg = `Guardado · ${rows.length} clases reagendadas${omitidas ? ` · ${omitidas} omitidas por bloqueos` : ''}`;
+      }
+      toast(msg); onClose();
+    } catch (e: any) { toast('Error: ' + e.message); } finally { setBusy(false); }
+  };
   return (
-    <Sheet title="Pago de la suscripción" onClose={onClose}>
+    <Sheet title={`${sub.plan_nombre || 'Suscripción'} · ${persona?.nombre?.split(' ')[0] || ''}`} onClose={onClose} wide>
       <div className="stack">
         <div className="row2"><Field label="Inicio del período"><input type="date" value={ini} onChange={(e) => { setIni(e.target.value); if (e.target.value && !unica) setFin(subFin(e.target.value)); }} /></Field><Field label="Fin del período"><input type="date" value={fin} onChange={(e) => setFin(e.target.value)} /></Field></div>
         {(ini !== sub.inicio || fin !== sub.fin) && <div className="muted small">Cambiás la vigencia de este plan. Las clases ya agendadas no se mueven solas; revisalas después en la ficha.</div>}
-        <div className="row2"><Field label="Fecha"><input type="date" value={f} onChange={(e) => setF(e.target.value)} /></Field><Field label="Método"><select value={m} onChange={(e) => setM(e.target.value)}>{d.metodos.map((x: any) => <option key={x.id} value={x.id}>{x.nombre}</option>)}</select></Field></div>
-        <Field label="Monto"><input inputMode="numeric" value={monto} onChange={(e) => setMonto(e.target.value.replace(/\D/g, ''))} /></Field>
-        <button className="btn big" onClick={async () => { try { if (!ini || !fin || fin < ini) { toast('El fin no puede ser antes del inicio'); return; } await upd('suscripciones', sub.id, { inicio: ini, fin, pago_fecha: f, pago_metodo_id: m || null, pago_monto: Number(monto) || 0 }); toast('Guardado'); onClose(); } catch (e: any) { toast('Error: ' + e.message); } }}>Guardar pago</button>
+        {!unica && <label className="check"><input type="checkbox" checked={camb} onChange={(e) => setCamb(e.target.checked)} /> Cambiar el plan o los días y horarios</label>}
+        {camb && <div className="box stack">
+          <Field label="Plan"><select value={planId} onChange={(e) => elegirPlan(e.target.value)}>{planes.map((p: any) => <option key={p.id} value={p.id}>{p.nombre} · {gs(p.precio)} · {p.clases_semana} clase{p.clases_semana === 1 ? '' : 's'}/sem</option>)}</select></Field>
+          <b>Días y horarios fijos <span className="muted small">({nSlots} por semana)</span></b>
+          {slots.map((x, i) => (<div className="row2" key={i}>
+            <select value={x.dia} onChange={(e) => setSlot(i, { dia: Number(e.target.value) })}>{[1, 2, 3, 4, 5, 6, 7].map((n) => <option key={n} value={n}>{DIA_L[n]}</option>)}</select>
+            <select value={x.hora} onChange={(e) => setSlot(i, { hora: e.target.value })}>{horasOk.map((h) => <option key={h} value={h}>{h}</option>)}</select></div>))}
+          {dupSlots && <span className="warn small">Hay dos horarios repetidos.</span>}
+          <div className="muted small">Precio del plan nuevo: {gs(nuevoFinal)}{sub.promo_nombre ? ` (con ${sub.promo_nombre})` : ''}. Se reagendan las {futuras.length} clases fijas que faltan hasta el {fmtDateY(fin)}; las ya dadas no se tocan.{sub.pago_fecha && Number(monto) !== nuevoFinal ? ` Ya figura pagado ${gs(Number(monto))}: ajustá el monto abajo si corresponde.` : ''}</div>
+        </div>}
+        {!sub.pago_fecha && <label className="check"><input type="checkbox" checked={reg} onChange={(e) => setReg(e.target.checked)} /> Registrar el pago ahora (si no, queda pendiente)</label>}
+        {verPago && <div className="row2"><Field label="Fecha de pago"><input type="date" value={f} onChange={(e) => setF(e.target.value)} /></Field><Field label="Método"><select value={m} onChange={(e) => setM(e.target.value)}>{d.metodos.map((x: any) => <option key={x.id} value={x.id}>{x.nombre}</option>)}</select></Field></div>}
+        {verPago && <Field label="Monto"><input inputMode="numeric" value={monto} onChange={(e) => setMonto(e.target.value.replace(/\D/g, ''))} /></Field>}
+        <button className="btn big" disabled={busy} onClick={guardar}>{sub.pago_fecha || !reg ? 'Guardar' : 'Guardar y registrar pago'}</button>
         {sub.pago_fecha && <button className="btn ghost danger" onClick={async () => { await upd('suscripciones', sub.id, { pago_fecha: null, pago_monto: null, pago_metodo_id: null }); onClose(); }}>Quitar pago</button>}
       </div>
     </Sheet>
