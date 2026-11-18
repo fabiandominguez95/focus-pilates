@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { gsShort } from './util';
 
 export function Sheet({ title, onClose, children, wide }: { title?: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
   useEffect(() => { const f = (e: KeyboardEvent) => e.key === 'Escape' && onClose(); window.addEventListener('keydown', f); document.body.style.overflow = 'hidden'; return () => { window.removeEventListener('keydown', f); document.body.style.overflow = ''; }; }, [onClose]);
+  const tIn = useRef(0); // un toque que empezó adentro de la ventana no debe cerrarla si, al correrse el teclado, el mouse sintético cae afuera
   return (
-    <div className="scrim" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="scrim" onTouchStartCapture={(e) => { tIn.current = e.target === e.currentTarget ? 0 : Date.now(); }} onMouseDown={(e) => { if (e.target !== e.currentTarget) return; if (tIn.current && Date.now() - tIn.current < 900) return; onClose(); }}>
       <div className={'sheet' + (wide ? ' wide' : '')} role="dialog">
         <div className="sheet-head"><div className="sheet-title">{title}</div><button className="x" onClick={onClose} aria-label="Cerrar">✕</button></div>
         <div className="sheet-body">{children}</div>

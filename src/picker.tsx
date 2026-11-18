@@ -5,7 +5,7 @@ import { normPhone, CANALES } from './util';
 
 // Selector de persona: al elegir, queda un recuadro (no editable). Backspace o ✕ lo quita entero.
 export function PersonaPicker({ value, onChange, exclude, placeholder = 'Buscar por nombre…', allowCreate = true, autoFocus }: { value: string; onChange: (id: string) => void; exclude?: string; placeholder?: string; allowCreate?: boolean; autoFocus?: boolean }) {
-  const { d, isAdmin, ins, toast, hoy, cfg } = useApp(); const [q, setQ] = useState(''); const [pideCel, setPideCel] = useState(false); const [cel, setCel] = useState(''); const [canal, setCanal] = useState('anuncio_meta'); const box = useRef<HTMLDivElement>(null);
+  const { d, isAdmin, ins, toast, hoy, cfg } = useApp(); const [q, setQ] = useState(''); const [pideCel, setPideCel] = useState(false); const [cel, setCel] = useState(''); const [canal, setCanal] = useState('anuncio_meta'); const box = useRef<HTMLDivElement>(null); const selAt = useRef(0);
   const sel = d.personas.find((p: any) => p.id === value);
   const list = useMemo(() => (q ? d.personas.filter((p: any) => p.id !== exclude && matchPersona(p, q)).slice(0, 6) : []), [q, d.personas, exclude]);
   const exact = d.personas.some((p: any) => p.nombre.trim().toLowerCase() === q.trim().toLowerCase());
@@ -14,14 +14,14 @@ export function PersonaPicker({ value, onChange, exclude, placeholder = 'Buscar 
   };
   if (sel) return (
     <div ref={box} className="pchip" tabIndex={0} role="group" aria-label={'Seleccionada: ' + sel.nombre} onKeyDown={(e) => { if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); onChange(''); } }}>
-      <span className="pchip-n">{sel.nombre}</span><button type="button" className="pchip-x" aria-label="Quitar" onClick={() => onChange('')}>✕</button>
+      <span className="pchip-n">{sel.nombre}</span><button type="button" className="pchip-x" aria-label="Quitar" onClick={() => { if (Date.now() - selAt.current < 700) return; onChange(''); }}>✕</button>
     </div>);
   return (
     <div>
       <div className="sbox"><input placeholder={placeholder} value={q} autoFocus={autoFocus} onChange={(e) => setQ(e.target.value)} />{q && <button type="button" className="sclear" aria-label="Borrar" onClick={() => setQ('')}>×</button>}</div>
       {q && (list.length > 0 || (allowCreate && isAdmin && !exact)) && (
         <div className="pick">
-          {list.map((p: any) => <button type="button" key={p.id} onClick={() => { onChange(p.id); setQ(''); }}>{p.nombre}{p.celular ? <small className="muted"> · {normPhone(p.celular, cfg.pais_tel).slice(-4).padStart(7, '·')}</small> : null}</button>)}
+          {list.map((p: any) => <button type="button" key={p.id} onMouseDown={(e) => e.preventDefault()} onClick={() => { selAt.current = Date.now(); onChange(p.id); setQ(''); }}>{p.nombre}{p.celular ? <small className="muted"> · {normPhone(p.celular, cfg.pais_tel).slice(-4).padStart(7, '·')}</small> : null}</button>)}
           {allowCreate && isAdmin && !exact && (pideCel ? <div className="pick-new" style={{ padding: 8 }}><input inputMode="tel" placeholder="Celular (opcional)" value={cel} onChange={(e) => setCel(e.target.value)} /><select style={{ marginTop: 6 }} value={canal} onChange={(e) => setCanal(e.target.value)} aria-label="¿De dónde vino?">{CANALES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select><button type="button" className="btn sm" style={{ marginTop: 6 }} onClick={crear}>Crear «{q.trim()}»</button></div> : <button type="button" className="pick-new" onClick={() => setPideCel(true)}>+ Crear «{q.trim()}» como persona nueva</button>)}
         </div>)}
       {q && !list.length && !(allowCreate && isAdmin) && <small className="muted">Sin resultados.</small>}
